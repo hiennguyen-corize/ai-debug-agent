@@ -1,6 +1,6 @@
-# AI Debug Agent — Project Specifications v4.0
+# AI Debug Agent — Project Specifications v4.1
 
-> **Mục tiêu:** CLI tool chạy local, nhận URL + mô tả bug (hoặc chỉ URL), tự động **điều tra từ đầu** như một senior developer — khám phá trang, xây dựng hypothesis, tái hiện bug, resolve source map về code gốc, trace data flow, và đưa ra root cause + suggested fix cụ thể trong code.
+> **Mục tiêu:** Investigation Service (deploy local hoặc cloud), nhận request qua **MCP tool** hoặc **REST API** với URL + mô tả bug (hoặc chỉ URL), tự động **điều tra từ đầu** như một senior developer — khám phá trang, xây dựng hypothesis, tái hiện bug, resolve source map về code gốc, trace data flow, và đưa ra root cause + suggested fix cụ thể trong code.
 
 > **Thay đổi triết lý v4.0:** v3.x là *"reproduce bug theo instruction"*. v4.0 là *"tự điều tra bug từ đầu"* — agent không cần biết bug là gì trước khi bắt đầu. Investigation-first, không phải script-first.
 >
@@ -9,6 +9,8 @@
 > **Changelog v4.0.2:** Gap fixes — (1) Pre-flight clarification; (2) Import chain tracing; (3) Source map fallback strategy; (4) Bug Pattern Catalogue.
 >
 > **Changelog v4.0.3:** Khôi phục Antigravity Browser Subagent pattern — Investigator (Tier 1) chỉ suy luận và viết `BrowserTask`, Explorer (Tier 2) nhận task và thực thi browser actions one-shot qua `ReusedSubagentId`. Tách tool set thành hai nhóm rõ ràng: Analysis Tools (Investigator) và Browser Tools (Explorer).
+>
+> **Changelog v4.1:** Service Architecture — chuyển từ CLI tool sang Investigation Service. Dual interface: MCP Server (tool `investigate_bug`) + REST API (`POST /investigate`). EventBus streaming qua SSE cho remote consumers. `ask_user` hỗ trợ `callbackUrl` cho cloud deployment. ink TUI trở thành optional (local dev only).
 
 ---
 
@@ -45,7 +47,7 @@ Hai mode điều khiển behavior khi Investigator thiếu thông tin:
 
 **Lưu ý:** `autonomous` không có nghĩa là kém hơn — với bug có đủ evidence từ network/console/source map, cả hai mode cho kết quả như nhau. Sự khác biệt chỉ xuất hiện khi agent thực sự bị kẹt vì thiếu business context.
 
-### 1.3 Triết lý thiết kế
+### 1.4 Triết lý thiết kế
 
 - **Investigation-first** — vào trang, quan sát, xây hypothesis trước khi làm bất cứ điều gì
 - **Hypothesis-driven loop** — mỗi action là để test một hypothesis cụ thể, không phải execute script
@@ -225,6 +227,11 @@ export const StateAnnotation = Annotation.Root({
   explorerSubagentId:  Annotation<string>({ default: () => `explorer-${Date.now()}` }),
   // ↑ ReusedSubagentId — cố định suốt session để Explorer giữ browser state
 
+  // ── Browser task dispatch ───────────────────────────────────
+  pendingBrowserTask: Annotation<BrowserTask | null>({
+    default: () => null
+  }),
+
   // ── Browser task results ────────────────────────────────────
   browserTaskResults: Annotation<BrowserTaskResult[]>({
     default:  () => [],
@@ -238,6 +245,7 @@ export const StateAnnotation = Annotation.Root({
     | 'scouting'
     | 'hypothesizing'
     | 'investigating'
+    | 'waiting_explorer'
     | 'source_analysis'
     | 'synthesizing'
     | 'done'
@@ -1196,45 +1204,177 @@ export const TIER_PROFILES: Record<ModelTier, ModelProfile> = {
 
 ---
 
-## 8. CLI Interface
+## 8. Service Interface
+
+AI Debug Agent expose hai interface song song, share cùng investigation graph:
+
+```
+MCP Client (Antigravity, Claude Desktop, Cursor...)  →  MCP Server  →  Investigation Graph
+REST Client (Web UI, Slack bot, CI/CD, curl)          →  REST API    →  Investigation Graph
+CLI (local dev convenience)                           →  REST API    →  Investigation Graph
+```
+
+### 8.1 MCP Interface — tool `investigate_bug`
+
+MCP server expose tool `investigate_bug` cho bất kỳ MCP client nào gọi:
+
+```typescript
+// Tool definition trong MCP server
+server.tool('investigate_bug', {
+  description: 'Investigate a web application bug. Navigates to URL, observes, builds hypotheses, and produces a root cause report.',
+  inputSchema: InvestigationRequestSchema,
+}, async (request) => {
+  const result = await investigationGraph.invoke(request);
+  return { content: [{ type: 'text', text: JSON.stringify(result.finalReport) }] };
+});
+```
+
+**MCP config cho client:**
+```json
+{
+  "mcpServers": {
+    "ai-debug-agent": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+### 8.2 REST API
+
+Hono server, lightweight, edge-compatible:
+
+```typescript
+// api/server.ts
+import { Hono } from 'hono';
+import { stream } from 'hono/streaming';
+
+const app = new Hono();
+
+// Start investigation
+app.post('/investigate', async (c) => {
+  const request = InvestigationRequestSchema.parse(await c.req.json());
+  const threadId = `debug-${Date.now()}`;
+
+  // Fire-and-forget — client polls or streams
+  investigationGraph.invoke(request, { configurable: { thread_id: threadId } });
+
+  return c.json({ threadId, status: 'started' });
+});
+
+// Poll status
+app.get('/investigate/:threadId', async (c) => {
+  const state = await investigationGraph.getState({
+    configurable: { thread_id: c.req.param('threadId') }
+  });
+  return c.json({
+    status:     state.values.status,
+    hypotheses: state.values.hypotheses,
+    evidence:   state.values.evidence.length,
+    report:     state.values.finalReport
+  });
+});
+
+// SSE stream — realtime events
+app.get('/investigate/:threadId/stream', (c) => {
+  return stream(c, async (stream) => {
+    const unsubscribe = eventBus.subscribe((event) => {
+      stream.write(`data: ${JSON.stringify(event)}\n\n`);
+    });
+    // Keep alive until investigation done
+    await investigationGraph.waitForCompletion(c.req.param('threadId'));
+    unsubscribe();
+  });
+});
+
+// List reports
+app.get('/reports', async (c) => {
+  const reports = loadRegistry().reports;
+  const severity = c.req.query('severity');
+  const url = c.req.query('url');
+  return c.json(reports.filter(r =>
+    (!severity || r.severity === severity) &&
+    (!url || r.url.includes(url))
+  ));
+});
+```
+
+### 8.3 Shared Request Schema
+
+Cả MCP và REST dùng chung schema:
+
+```typescript
+// shared/types.ts
+const InvestigationRequestSchema = z.object({
+  url:           z.string().url(),
+  hint:          z.string().optional(),
+  mode:          z.enum(['interactive', 'autonomous']).default('autonomous'),
+  callbackUrl:   z.string().url().optional(),   // cho interactive mode trên cloud
+  sourcemapDir:  z.string().optional(),
+
+  // Request-level config override
+  config:        z.object({
+    llm: z.object({
+      investigator: z.object({
+        provider: z.string(),
+        model:    z.string(),
+        baseURL:  z.string().optional(),
+        apiKey:   z.string().optional(),
+      }).partial().optional(),
+      explorer: z.object({
+        provider: z.string(),
+        model:    z.string(),
+        baseURL:  z.string().optional(),
+        apiKey:   z.string().optional(),
+      }).partial().optional(),
+    }).partial().optional(),
+    agent: z.object({
+      maxIterations: z.number().optional(),
+      maxRetries:    z.number().optional(),
+    }).partial().optional(),
+  }).optional(),
+});
+
+type InvestigationRequest = z.infer<typeof InvestigationRequestSchema>;
+```
+
+**Config precedence:** request > env vars > file (`ai-debug.config.json`) > defaults.
+
+### 8.4 CLI Wrapper (optional, local dev)
+
+Thin wrapper gọi REST API, dùng khi phát triển hoặc debug local:
 
 ```bash
-# Cơ bản — chỉ URL, agent tự khám phá (interactive mode mặc định)
-ai-debug run --url "https://shop.com/cart"
+# Start server
+ai-debug serve --port 3100
 
-# Với hint
-ai-debug run --url "https://shop.com/cart" --hint "thêm vào giỏ hàng bị crash"
+# Investigate (gọi REST API)
+ai-debug run --url "https://shop.com/cart" --hint "cart crash"
+ai-debug run --url "https://shop.com/cart" --mode autonomous
+ai-debug run --url "https://shop.com/cart" --sourcemap-dir "./dist"
 
-# Autonomous mode — không hỏi gì, tự assume hết
-ai-debug run --url "https://shop.com/cart" --hint "cart crash" --mode autonomous
-
-# Interactive mode (explicit, giống default)
-ai-debug run --url "https://shop.com/cart" --mode interactive
-
-# Với source map local
-ai-debug run --url "https://shop.com/cart" \
-             --hint "cart crash" \
-             --sourcemap-dir "./dist"
-
-# Verbose — hiển thị full reasoning
-ai-debug run --url "https://shop.com/cart" --verbose
-
-# Không TUI — cho CI/CD (thường kết hợp với autonomous)
-ai-debug run --url "https://shop.com/cart" --mode autonomous --no-tui
-
-# Resume từ checkpoint
+# Resume
 ai-debug resume --thread-id "debug-1705123456789"
+
+# Reports
+ai-debug list
+ai-debug list --severity critical
+ai-debug open --latest
 ```
 
-### Terminal output mẫu
+### 8.5 Output mẫu (CLI mode)
 
 ```
-🤖 AI Debug Agent v4.0.0
+🤖 AI Debug Agent v4.1.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🌐 URL     : https://shop.com/cart
 💡 Hint    : thêm vào giỏ hàng bị crash
 🧠 Models  : Investigator (gpt-4o) | Explorer (gemini-2.0-flash) | Scout (gemini-2.0-flash)
-⚙️  Mode    : interactive  ← hỏi user khi bị kẹt
+⚙️  Mode    : autonomous
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [00:01] 🔍 [Scout] Vào trang https://shop.com/cart...
@@ -1272,7 +1412,13 @@ ai-debug resume --thread-id "debug-1705123456789"
 
 ## 9. Observability Layer
 
-Kế thừa toàn bộ từ v3.3 (EventBus, ink TUI, pino JSONL logger). Cập nhật event types cho v4.0:
+Kế thừa toàn bộ từ v3.3 (EventBus, pino JSONL logger). Cập nhật cho v4.1:
+
+**EventBus là primary** — tất cả events đi qua EventBus. Consumers:
+- **pino JSONL** — structured log file (giữ nguyên)
+- **SSE stream** — REST API stream events realtime cho web dashboard hoặc remote consumers
+- **MCP notifications** — stream progress events cho MCP client
+- **ink TUI** — optional, chỉ khi chạy CLI mode (local dev)
 
 ```typescript
 type AgentEvent =
@@ -1324,6 +1470,228 @@ type AgentEvent =
 │  📍 Source   AddToCartButton.tsx:67 — product?.id          │
 └────────────────────────────────────────────────────────────┘
 ```
+### 9.1 Streaming Format — `InvestigationStep`
+
+Raw `AgentEvent` quá chi tiết cho consumer (web UI, Slack bot, MCP client). `StepAggregator` gom events thành structured `InvestigationStep`:
+
+```typescript
+// observability/step-aggregator.ts
+interface InvestigationStep {
+  timestamp:  string;
+  agent:      'scout' | 'investigator' | 'explorer' | 'synthesis';
+  type:       'thinking' | 'action' | 'result' | 'hypothesis' | 'phase_change' | 'error';
+  summary:    string;                     // 1 dòng tóm tắt — luôn gửi
+  detail?:    string;                     // full reasoning — chỉ gửi ở verbose
+  metadata?:  Record<string, unknown>;    // hypothesis data, tool args, timing...
+}
+
+// Transform: raw AgentEvent → InvestigationStep
+function aggregateEvent(event: AgentEvent): InvestigationStep {
+  switch (event.type) {
+    case 'reasoning':
+      return {
+        timestamp: now(), agent: event.agent, type: 'thinking',
+        summary: truncate(event.text, 100),    // "h1 confirmed: POST thiếu productId..."
+        detail:  event.text,                   // full reasoning paragraph
+      };
+
+    case 'tool_call':
+      return {
+        timestamp: now(), agent: event.agent, type: 'action',
+        summary: `🔧 ${event.tool}`,
+        metadata: { tool: event.tool, args: event.args },
+      };
+
+    case 'tool_result':
+      return {
+        timestamp: now(), agent: event.agent, type: 'result',
+        summary: `${event.success ? '✓' : '✗'} ${event.tool} (${event.durationMs}ms)`,
+        metadata: { success: event.success, durationMs: event.durationMs },
+      };
+
+    case 'hypothesis_created':
+      return {
+        timestamp: now(), agent: 'investigator', type: 'hypothesis',
+        summary: event.hypotheses.map(h => `[${h.confidence}] ${h.statement}`).join(' | '),
+        metadata: { hypotheses: event.hypotheses },
+      };
+
+    case 'investigation_phase':
+      return {
+        timestamp: now(), agent: 'investigator', type: 'phase_change',
+        summary: `Phase → ${event.phase.toUpperCase()}`,
+        metadata: { phase: event.phase },
+      };
+
+    // ... other events
+  }
+}
+```
+
+**SSE stream gửi `InvestigationStep`** (không phải raw `AgentEvent`):
+```
+data: {"timestamp":"00:07","agent":"investigator","type":"thinking","summary":"h1 confirmed: POST thiếu productId..."}
+
+data: {"timestamp":"00:08","agent":"investigator","type":"action","summary":"🔧 resolve_error_location"}
+
+data: {"timestamp":"00:09","agent":"investigator","type":"result","summary":"✓ resolve_error_location (1200ms)"}
+```
+
+### 9.2 MCP Progress Notifications
+
+MCP protocol hỗ trợ `notifications/message` — stream progress trong khi `investigate_bug` tool đang chạy:
+
+```typescript
+// mcp-server/index.ts
+server.tool('investigate_bug', schema, async (request, { sendNotification }) => {
+  const unsubscribe = eventBus.subscribe((event) => {
+    const step = aggregateEvent(event);
+
+    sendNotification({
+      method: 'notifications/message',
+      params: {
+        level: step.type === 'error' ? 'error' : 'info',
+        logger: `ai-debug.${step.agent}`,
+        data: step
+      }
+    });
+  });
+
+  try {
+    const result = await investigationGraph.invoke(request);
+    return { content: [{ type: 'text', text: JSON.stringify(result.finalReport) }] };
+  } finally {
+    unsubscribe();
+  }
+});
+```
+
+**MCP client sẽ thấy:**
+```
+[ai-debug.scout]         🔍 Vào trang https://shop.com/cart...
+[ai-debug.scout]         🔧 browser_get_dom
+[ai-debug.scout]         ✓ browser_get_dom (340ms)
+[ai-debug.investigator]  Phase → HYPOTHESIZING
+[ai-debug.investigator]  [0.75] API body thiếu field | [0.60] null check missing
+[ai-debug.investigator]  🔧 get_network_payload
+```
+
+### 9.3 Stream Levels — Verbose vs Summary
+
+| Level | Gửi gì | Consumer | Default |
+|-------|---------|----------|---------|
+| `summary` | `phase_change` + `hypothesis` + `result` + `error` | REST API, MCP, Slack bot | ✅ API/MCP |
+| `verbose` | Tất cả steps kể cả `thinking` + `action` | CLI, local dev, debugging | ✅ CLI |
+
+```typescript
+// observability/step-aggregator.ts
+const SUMMARY_TYPES: Set<InvestigationStep['type']> = new Set([
+  'phase_change', 'hypothesis', 'result', 'error'
+]);
+
+function shouldStream(step: InvestigationStep, level: StreamLevel): boolean {
+  if (level === 'verbose') return true;
+  return SUMMARY_TYPES.has(step.type);
+}
+```
+
+**Config:** `output.streamLevel: 'summary' | 'verbose'`. Request-level override: `{ "config": { "output": { "streamLevel": "verbose" } } }`.
+
+### 9.4 Correlation Tracing — `actionId`
+
+Khi Explorer click một nút, Investigator cần biết chính xác network request nào và console error nào phát sinh từ cú click đó — không phải từ background polling hay timer.
+
+**Giải pháp:** Mỗi browser action sinh `actionId`. `collector.ts` capture network + console trong time window sau action, gắn cùng `actionId`.
+
+```typescript
+// browser/collector.ts
+interface CapturedRequest {
+  actionId:      string;
+  method:        string;
+  url:           string;
+  status:        number;         // HTTP status code (0 nếu chưa có response)
+  requestStart:  number;         // timestamp khi request bắt đầu
+  responseEnd:   number;         // timestamp khi response hoàn tất
+  durationMs:    number;         // responseEnd - requestStart
+  initiator:     string;         // frame URL that initiated the request
+}
+
+interface CapturedLog {
+  actionId:      string;
+  type:          'log' | 'warning' | 'error' | 'info';
+  text:          string;
+  timestamp:     number;
+}
+
+interface CorrelatedEvidence {
+  actionId:       string;           // uuid
+  action:         string;           // 'click #add-to-cart-btn'
+  timestamp:      number;
+  networkEvents:  CapturedRequest[];  // requests bắt đầu trong 3s sau action
+  consoleEvents:  CapturedLog[];     // console entries trong 3s sau action
+}
+
+async function executeAndCollect(
+  page: Page,
+  action: () => Promise<void>,
+  actionLabel: string
+): Promise<CorrelatedEvidence> {
+  const actionId = crypto.randomUUID();
+  const startTime = Date.now();
+  const WINDOW_MS = 3000;   // 3 giây sau action
+
+  const networkEvents: CapturedRequest[] = [];
+  const consoleEvents: CapturedLog[] = [];
+
+  // Start listeners TRƯỚC khi action
+  const onRequest = (req: Request) => {
+    if (Date.now() - startTime <= WINDOW_MS) {
+      networkEvents.push({
+        actionId, url: req.url(), method: req.method(),
+        initiator: req.frame()?.url() ?? 'unknown',
+        timestamp: Date.now()
+      });
+    }
+  };
+  const onConsole = (msg: ConsoleMessage) => {
+    if (Date.now() - startTime <= WINDOW_MS) {
+      consoleEvents.push({
+        actionId, type: msg.type(), text: msg.text(),
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  page.on('request', onRequest);
+  page.on('console', onConsole);
+
+  await action();
+  await page.waitForTimeout(WINDOW_MS);
+
+  page.off('request', onRequest);
+  page.off('console', onConsole);
+
+  return { actionId, action: actionLabel, timestamp: startTime, networkEvents, consoleEvents };
+}
+```
+
+**Investigator nhận:**
+```json
+{
+  "actionId": "a1b2c3",
+  "action": "click #add-to-cart-btn",
+  "networkEvents": [
+    { "method": "POST", "url": "/api/cart/add", "status": 400 }
+  ],
+  "consoleEvents": [
+    { "type": "error", "text": "TypeError: Cannot read property 'id' of undefined" }
+  ]
+}
+```
+
+Không còn phải đoán "network error này có phải do click đó không" — `actionId` chứng minh quan hệ nhân quả.
+
+`InvestigationStep` bổ sung field `correlationId?: string` để stream actionId qua SSE/MCP.
 
 ---
 
@@ -1437,7 +1805,7 @@ TypeError: Cannot read properties of undefined (reading 'id')
 
 ---
 
-## 10. Bug Pattern Catalogue *(khôi phục + mở rộng v4.0.2)*
+## 10b. Bug Pattern Catalogue *(khôi phục + mở rộng v4.0.2)*
 
 Investigator dùng catalogue này để sinh hypothesis đúng hướng ngay từ đầu. Mỗi pattern có dấu hiệu nhận diện, hypothesis mẫu, và investigation strategy cụ thể.
 
@@ -1700,27 +2068,56 @@ Dựa trên network payload:
 
 **Giải pháp:** Max hypotheses theo Tier. Sau 3 iteration không có hypothesis nào đạt `confirmed`, Investigator bị inject: *"Bạn đã thử {n} hướng. Tổng hợp evidence hiện có và gọi finish_investigation — dù chưa chắc chắn."*
 
-### 11.4 `ask_user` bị lạm dụng ở interactive mode
+### 11.4 `ask_user` — interactive mode on local + cloud
 
-**Vấn đề:** Investigator hỏi user liên tục thay vì tự tìm hiểu.
+**Vấn đề:** Investigator hỏi user liên tục thay vì tự tìm hiểu. Trên cloud, `readline` không khả dụng.
 
-**Giải pháp:** Hard limit 3 lần `ask_user` per session ở `interactive` mode. Lần thứ 4 trở đi bị chặn — Investigator phải tự assume và ghi vào `assumptions[]`. Behavior này giống hệt `autonomous` mode từ lần hỏi thứ 4.
+**Giải pháp:**
+- Hard limit 3 lần `ask_user` per session ở `interactive` mode
+- Lần thứ 4 trở đi bị chặn — tự assume
+- **Local (CLI mode):** dùng `readline` terminal input
+- **Cloud (API/MCP):** POST câu hỏi đến `callbackUrl` (nếu có), đợi response (timeout 5 phút). Nếu không có `callbackUrl` → treat như `autonomous` — tự assume
 
 ```typescript
-// graph/nodes/investigator.ts
-function canAskUser(state: AgentState): boolean {
-  if (state.investigationMode === 'autonomous') return false;  // không bao giờ
-  return state.userClarifications.length < 3;                  // tối đa 3 lần
+// graph/nodes/ask-user.ts
+async function askUser(state: AgentState, config: Config): Promise<string> {
+  if (state.investigationMode === 'autonomous') {
+    throw new Error('Cannot ask user in autonomous mode');
+  }
+  if (state.userClarifications.length >= 3) {
+    throw new Error('Max user questions reached, assuming...');
+  }
+
+  // Cloud mode — callbackUrl
+  if (config.agent.callbackUrl) {
+    const response = await fetch(config.agent.callbackUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        type:     'question',
+        threadId: state.threadId,
+        question: state.pendingQuestion,
+        context:  state.hypotheses.map(h => h.statement)
+      })
+    });
+
+    // Đợi response (polling hoặc webhook reply)
+    const answer = await waitForAnswer(state.threadId, { timeoutMs: 300_000 });
+    if (!answer) throw new Error('User did not respond within 5 minutes');
+    return answer;
+  }
+
+  // Local mode — readline
+  return await readlineQuestion(state.pendingQuestion!);
 }
 ```
 
-**Tóm tắt behavior theo mode:**
+**Tóm tắt behavior theo mode + deployment:**
 
-| Tình huống | `interactive` | `autonomous` |
-|---|---|---|
-| Lần hỏi 1–3 | ✅ Hỏi user, đợi | ❌ Tự assume |
-| Lần hỏi 4+ | ❌ Tự assume | ❌ Tự assume |
-| Report | "User Clarifications" section | "Assumptions" section dài hơn |
+| Tình huống | `interactive` (local) | `interactive` (cloud + callbackUrl) | `interactive` (cloud, no callbackUrl) | `autonomous` |
+|---|---|---|---|---|
+| Lần hỏi 1–3 | ✅ readline | ✅ POST to callbackUrl | ❌ Tự assume | ❌ Tự assume |
+| Lần hỏi 4+ | ❌ Tự assume | ❌ Tự assume | ❌ Tự assume | ❌ Tự assume |
+| Report | "User Clarifications" | "User Clarifications" | "Assumptions" dài hơn | "Assumptions" dài hơn |
 
 ### 11.5 read_source_file trả về code minified
 
@@ -1991,6 +2388,344 @@ Delay sequence: ~1s → ~2s → ~4s (với jitter ±20%). `Retry-After` header t
 
 ---
 
+### 11.13 Guardrails — Hard-coded safety *(kế thừa v3)*
+
+**Vấn đề:** Không thể phụ thuộc hoàn toàn vào LLM để tránh actions nguy hiểm. Dù model mạnh đến đâu, guardrail ở tầng code vẫn cần thiết.
+
+**Giải pháp:** Chặn cứng trong `actions.ts`, không phụ thuộc vào prompt.
+
+```typescript
+// browser/actions.ts
+const DANGEROUS_KEYWORDS = [
+  'delete', 'remove', 'xóa', 'xoa', 'hủy', 'huy',
+  'drop', 'reset', 'destroy', 'purge', 'clear all',
+  'deactivate account', 'delete account'
+];
+
+async function safeClick(page: Page, selector: string): Promise<void> {
+  const element = await page.$(selector);
+  if (!element) throw new Error(`Element not found: ${selector}`);
+
+  const text = await element.textContent() ?? '';
+  const ariaLabel = await element.getAttribute('aria-label') ?? '';
+  const combined = `${text} ${ariaLabel}`.toLowerCase();
+
+  const isDangerous = DANGEROUS_KEYWORDS.some(kw => combined.includes(kw));
+  if (isDangerous) {
+    throw new Error(
+      `GUARDRAIL: Blocked click on "${text.trim()}". ` +
+      `Add to config.guardrails.allowList to override.`
+    );
+  }
+
+  await element.click();
+}
+
+async function safeNavigate(page: Page, url: string, baseUrl: string): Promise<void> {
+  const targetOrigin = new URL(url).origin;
+  const allowedOrigin = new URL(baseUrl).origin;
+  if (targetOrigin !== allowedOrigin) {
+    throw new Error(`GUARDRAIL: Navigation outside baseUrl not allowed. Target: ${url}`);
+  }
+  await page.goto(url);
+}
+```
+
+**Config override:** `config.guardrails.allowList: ["#delete-test-item-btn"]` — bypass cho selector cụ thể.
+
+---
+
+### 11.14 SPA delay handling *(kế thừa v3)*
+
+**Vấn đề:** React, Next.js, Vue render không đồng bộ. `browser_get_dom` ngay sau click có thể trả về DOM cũ.
+
+**Giải pháp:** `actions.ts` đọc wait timing từ Profiler profile, không hardcode.
+
+```typescript
+// browser/actions.ts
+async function clickAndWait(
+  page: Page,
+  selector: string,
+  profile: ModelProfile
+): Promise<void> {
+  await safeClick(page, selector);
+  await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(profile.spaWaitMs);    // 300 / 400 / 600 theo Tier
+  await page.waitForLoadState('domcontentloaded').catch(() => {});
+}
+
+async function fillAndWait(
+  page: Page,
+  selector: string,
+  value: string,
+  profile: ModelProfile
+): Promise<void> {
+  await page.fill(selector, value);
+  await page.waitForTimeout(profile.spaFillWaitMs); // 100 / 150 / 250 theo Tier
+}
+```
+
+**Config override:** `browser.spaWaitMs` và `browser.spaFillWaitMs` trong config thắng Profiler nếu được set — cho phép điều chỉnh theo đặc thù app (animation nặng cần wait dài hơn).
+
+---
+
+### 11.15 iFrame + Shadow DOM support *(kế thừa v3)*
+
+**Vấn đề:** `browser_get_dom` mặc định chỉ quét main frame. Bug trong Stripe iFrame, VNPay, hoặc Web Components sẽ vô hình với Agent.
+
+**Giải pháp:** `dom.ts` đệ quy qua tất cả frames và pierce Shadow DOM. Giới hạn số element từ Profiler profile.
+
+```typescript
+// browser/dom.ts
+async function extractInteractiveElements(
+  page: Page,
+  domElementLimit: number  // từ agentProfiles.explorer.domElementLimit
+): Promise<InteractiveElement[]> {
+  const results: InteractiveElement[] = [];
+
+  // Main frame
+  const mainElements = await extractFromFrame(page.mainFrame(), 'main');
+  results.push(...mainElements);
+
+  // iFrames
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    try {
+      const frameUrl = frame.url();
+      const frameElements = await extractFromFrame(frame, frameUrl);
+      results.push(...frameElements.map(el => ({
+        ...el,
+        frameId: frameUrl,
+        selector: `frame[src="${frameUrl}"] >> ${el.selector}`
+      })));
+    } catch {
+      // Frame có thể bị cross-origin, bỏ qua
+    }
+  }
+
+  return results.slice(0, domElementLimit);  // 40 / 80 / 150 theo Tier
+}
+```
+
+Element trong iFrame được đánh dấu `frameId` để Explorer switch frame đúng khi click.
+
+---
+
+### 11.16 Token budget + context overflow *(kế thừa v3)*
+
+**Vấn đề:** Evidence array và browserTaskResults tăng theo mỗi iteration. Vượt context window → LLM hallucinate hoặc drop instruction.
+
+**Giải pháp:** `llm-client.ts` kiểm tra token budget trước mỗi call. Ngưỡng từ Profiler profile.
+
+```typescript
+// agent/llm-client.ts
+function trimToTokenBudget(
+  messages: Message[],
+  agentProfile: ModelProfile
+): Message[] {
+  const contextWindow = getContextWindowSize(agentProfile);
+  const budget = Math.floor(contextWindow * agentProfile.tokenBudgetRatio);
+  const estimated = estimateTokens(messages);   // js-tiktoken
+
+  if (estimated <= budget) return messages;
+
+  eventBus.emit({
+    type: 'warning',
+    message: `Token budget exceeded (${estimated} > ${budget}), trimming...`
+  });
+
+  // Trim order: old evidence → old network logs → old browserTaskResults
+  return trimEvidenceFromMessages(messages, budget);
+}
+```
+
+Tier 1: 85% budget. Tier 2: 75%. Tier 3: 60%.
+
+---
+
+### 11.17 Malformed tool calls *(kế thừa v3)*
+
+**Vấn đề:** Nhiều LLM provider trả về tool call JSON không chuẩn — syntax error, missing quotes, trailing comma.
+
+**Giải pháp:** `tool-parser.ts` fallback chain:
+
+```typescript
+// agent/tool-parser.ts
+function parseToolCall(raw: string): ToolCall {
+  // 1. Parse JSON trực tiếp
+  try { return JSON.parse(raw); } catch {}
+
+  // 2. Partial JSON parser (partial-json package)
+  try { return partialParse(raw); } catch {}
+
+  // 3. Regex extract JSON block
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch {}
+  }
+
+  // 4. Give up — return empty + warning
+  eventBus.emit({ type: 'warning', message: `Malformed tool call, skipping: ${raw.slice(0, 100)}` });
+  return { name: 'unknown', arguments: {} };
+}
+```
+
+Đảm bảo investigation loop không crash vì một tool call lỗi.
+
+---
+
+### 11.18 Report Registry + Dedup *(kế thừa v3)*
+
+**Registry schema** (lowdb):
+
+```typescript
+// reporter/registry.ts
+interface ReportEntry {
+  id:           string;
+  timestamp:    string;
+  url:          string;
+  hint:         string;
+  severity:     string;
+  rootCause:    string;
+  reportPath:   string;
+  models: {
+    investigator: string;
+    scout:        string;
+  };
+}
+```
+
+**Duplicate detection** (Jaro-Winkler vía `natural`):
+
+```typescript
+function checkDuplicate(hint: string, url: string, config: Config): ReportEntry | null {
+  const registry  = loadRegistry();
+  const threshold = config.output.deduplicationThreshold ?? 0.85;
+
+  return registry.reports.find(r =>
+    r.url === url && similarity(r.hint, hint) > threshold
+  ) ?? null;
+}
+```
+
+**CLI commands:**
+```bash
+ai-debug list                         # tất cả reports
+ai-debug list --severity critical     # lọc theo severity
+ai-debug list --url "/cart"            # lọc theo URL
+ai-debug open --latest                # mở report gần nhất
+```
+
+---
+
+### 11.19 Checkpointer — MemorySaver vs SqliteSaver *(kế thừa v3)*
+
+```typescript
+// graph/checkpointer.ts
+import { MemorySaver } from '@langchain/langgraph';
+import { SqliteSaver } from '@langchain/langgraph/checkpoint/sqlite';
+
+export function createCheckpointer(env: string) {
+  if (env === 'production') {
+    return new SqliteSaver('./debug-reports/checkpoints.db');
+  }
+  return new MemorySaver();
+}
+```
+
+| | MemorySaver | SqliteSaver |
+|---|---|---|
+| Storage | RAM | File `.db` trên disk |
+| Persist sau restart | ❌ | ✅ |
+| Dùng khi | Dev / testing | Production |
+
+**Resume sau crash:**
+```typescript
+const lastState = await compiledGraph.getState({ configurable: { thread_id: threadId } });
+if (lastState && lastState.values.status !== 'done') {
+  console.log('Resuming from checkpoint...');
+  await compiledGraph.invoke(null, { configurable: { thread_id: threadId } });
+}
+```
+
+---
+
+### 11.20 Evidence Sufficiency Criteria
+
+Investigator cần tiêu chí rõ ràng để quyết định khi nào evidence "đủ" để kết luận — không dựa vào cảm tính.
+
+**Confidence thresholds:**
+
+| Confidence | Status | Ý nghĩa |
+|-----------|--------|---------|
+| ≥ 0.85 | `confirmed` | Đủ evidence, kết luận chắc chắn |
+| 0.50 – 0.84 | `partial` | Có dấu hiệu nhưng chưa đủ — cần test thêm |
+| < 0.50 | `weak` | Hypothesis yếu — deprioritize |
+
+**Minimum evidence requirements cho `confirmed`:**
+
+```typescript
+// graph/nodes/investigator.ts
+function isEvidenceSufficient(hypothesis: Hypothesis, evidence: Evidence[]): boolean {
+  const relatedEvidence = evidence.filter(e => e.hypothesisId === hypothesis.id);
+
+  // Rule 1: Ít nhất 2 evidence types khác nhau
+  const types = new Set(relatedEvidence.map(e => e.category));
+  // categories: 'network' | 'console' | 'dom' | 'source' | 'user_input'
+  if (types.size < 2) return false;
+
+  // Rule 2: Bug phải được observe trực tiếp ít nhất 1 lần
+  const hasDirectObservation = relatedEvidence.some(e =>
+    e.type === 'network_error' || e.type === 'console_error' || e.type === 'dom_anomaly'
+  );
+  if (!hasDirectObservation) return false;
+
+  // Rule 3: Confidence threshold
+  if (hypothesis.confidence < 0.85) return false;
+
+  return true;
+}
+```
+
+**Cannot-determine threshold:**
+
+```typescript
+function shouldGiveUp(state: AgentState): boolean {
+  const iterationRatio = state.iterationCount / state.maxIterations;
+  const maxConfidence = Math.max(...state.hypotheses.map(h => h.confidence), 0);
+
+  // Sau 60% iterations mà max confidence < 0.5 → give up
+  if (iterationRatio >= 0.6 && maxConfidence < 0.5) {
+    return true;
+  }
+
+  // Tất cả hypotheses bị refuted
+  if (state.hypotheses.length > 0 && state.hypotheses.every(h => h.status === 'refuted')) {
+    return true;
+  }
+
+  return false;
+}
+```
+
+**Behavior khi give up:**
+- Set `status = 'cannot_determine'`
+- Report vẫn sinh — nhưng ghi rõ "Root cause chưa xác định. Dưới đây là evidence thu thập được và các hướng đã thử."
+- Tất cả hypotheses + evidence vẫn nằm trong report để developer tiếp tục manual
+
+**Inject vào system prompt:**
+
+Investigator system prompt chứa tiêu chí này để LLM calibrate confidence đúng:
+```
+Confidence calibration:
+- 0.85+ = bạn có ≥2 loại evidence (network + console, console + source, etc.) VÀ đã observe bug trực tiếp
+- 0.50-0.84 = có dấu hiệu nhưng chưa đủ cross-reference
+- <0.50 = chỉ là phỏng đoán, chưa có evidence trực tiếp
+Đừng tự tin quá mức. Nếu chỉ có 1 console error mà không có network evidence, confidence không nên vượt 0.70.
+```
+
+---
+
 ## 12. Auth Flow
 
 Kế thừa từ v3.x — form-based và cookie-based. Xem section 11 trong spec v3.3.
@@ -2017,6 +2752,14 @@ if (currentUrl.includes('/login') || currentUrl.includes('/signin')) {
 
 ```
 ai-debug-agent/
+│
+├── api/
+│   ├── server.ts                ← Hono REST server
+│   ├── routes/
+│   │   ├── investigate.ts
+│   │   └── reports.ts
+│   └── middleware/
+│       └── auth.ts              ← API key auth (nếu deploy public)
 │
 ├── mcp-server/
 │   ├── src/
@@ -2075,6 +2818,7 @@ ai-debug-agent/
 │   │   ├── agent/
 │   │   │   ├── llm-client.ts
 │   │   │   ├── tool-parser.ts
+│   │   │   ├── config-loader.ts
 │   │   │   └── prompts.ts
 │   │   ├── model/
 │   │   │   └── profiler.ts
@@ -2153,8 +2897,9 @@ ai-debug-agent/
 | `@langchain/langgraph` + `@langchain/core` | Investigation graph + checkpointing |
 | `better-sqlite3` | LangGraph SqliteSaver |
 | `source-map` | Parse + resolve source maps |
-| `ink` + `react` | TUI dashboard |
-| `commander` | CLI |
+| `ink` + `react` | TUI dashboard (optional, local dev only) |
+| `hono` | REST API server (lightweight, edge-compatible) |
+| `commander` | CLI wrapper (optional, local dev only) |
 | `js-tiktoken` | Token counting chính xác |
 | `p-retry` | LLM retry |
 | `partial-json` | Stream JSON parsing |
@@ -2189,36 +2934,46 @@ ai-debug-agent/
 - [ ] `--mode` CLI flag + `agent.mode` config field
 - [ ] `get_network_payload`, `fetch_source_map`, `resolve_error_location`, `read_source_file`, `ask_user` tools
 
-### v4.0.3 — Antigravity Browser Subagent (scope hiện tại)
-- [ ] **Explorer Node** — Antigravity browser subagent, `ReusedSubagentId`, one-shot execution
-- [ ] **`dispatch_browser_task` tool** — Investigator viết BrowserTask + dispatch
-- [ ] **`BrowserTask` / `BrowserTaskResult` types** — self-contained task contract
-- [ ] Investigator system prompt cập nhật: không gọi browser tools trực tiếp
-- [ ] Explorer system prompt: execute + observe + report, không phân tích
-- [ ] `explorerSubagentId` trong state — giữ browser session xuyên suốt
-- [ ] Config: thêm `llm.explorer.*` model config
-- [ ] TUI: phân biệt `[Investigator]` vs `[Explorer]` trong log
-- [ ] Tool access control: browser tools chỉ cho Explorer, analysis tools chỉ cho Investigator
-- [ ] `get_network_payload` tool — deep inspect request/response body
-- [ ] `fetch_source_map`, `resolve_error_location`, `read_source_file` tools
-- [ ] `ask_user` tool — trigger terminal interrupt
-- [ ] Auto-detect auth redirect trong Scout
-- [ ] `source-map` npm package integration
-- [ ] Hypothesis confidence tracking trong TUI
-- [ ] Report v4.0 với code location + data flow + suggested fix
-- [ ] Fixture bug `cart-missing-field` với source map để test
+### v4.0.3 — Antigravity Browser Subagent
+
+| Item | Acceptance Criteria |
+|------|--------------------|
+| Explorer Node | Nhận `BrowserTask`, thực thi browser actions, trả `BrowserTaskResult`. Browser session giữ nguyên qua `ReusedSubagentId` xuyên suốt investigation |
+| `dispatch_browser_task` tool | Investigator gọi → Explorer nhận task → kết quả inject vào state.evidence |
+| `BrowserTask` / `BrowserTaskResult` types | Zod validated. Task chứa `task` + `lookFor` + `stopCondition`. Result chứa `observations` + `networkActivity` + `consoleActivity` |
+| System prompts | Investigator không gọi browser tools trực tiếp (blocked). Explorer không phân tích (chỉ báo cáo) |
+| Tool access control | Browser tools → 403 nếu Investigator gọi. Analysis tools → 403 nếu Explorer gọi |
+| Hypothesis tracking | Confidence cập nhật sau mỗi evidence. Render trong SSE stream với status (untested/testing/confirmed/refuted/partial) |
+| Report v4.0 | Có sections: Root Cause, Code Location, Data Flow, Suggested Fix, Hypotheses Investigated, Repro Steps, Evidence |
+| Fixture test | `cart-missing-field` bug: chạy investigation → report xác định đúng `productId` missing + `AddToCartButton.tsx:67` |
+
+### v4.1 — Service Architecture
+
+| Item | Acceptance Criteria |
+|------|--------------------|
+| REST API `POST /investigate` | Nhận `InvestigationRequest` → trả `{ threadId, status: 'started' }`. Invalid request → 400 + Zod error |
+| REST API `GET /investigate/:threadId` | Trả current state: status, hypotheses, evidence count, finalReport (nếu done) |
+| REST API SSE stream | Client nhận `InvestigationStep` events realtime. Connection đóng khi investigation complete |
+| MCP `investigate_bug` | MCP client gọi → nhận `notifications/message` progress → nhận final report JSON |
+| `InvestigationRequestSchema` | Shared giữa MCP + REST. Zod validated. Hỗ trợ request-level config override |
+| Config precedence | request > env > file > defaults. Verified bằng test: request override thắng env |
+| `callbackUrl` | POST question → đợi answer (timeout 5m). Không có callbackUrl → auto-assume |
+| SSE + EventBus | EventBus emit → StepAggregator transform → filter by streamLevel → SSE write |
+| CLI wrapper | `ai-debug run` gọi REST API. `ai-debug serve` start Hono server |
+| API key auth | `X-API-Key` header. Missing/invalid → 401 |
 
 ### v5.0 — CI/CD Integration
 - [ ] Exit code khác 0 khi tìm thấy bug
 - [ ] `--format json` output machine-readable
-- [ ] Config từ env variables hoàn toàn
 - [ ] GitHub Action workflow example
+- [ ] Webhook integration (Slack, Discord, Teams)
 
 ---
 
-*Specifications v4.0.3 — AI Debug Agent*
-*Stack: LangGraph.js + MCP + OpenAI-compatible SDK + Playwright + source-map + ink + pino + TypeScript*
+*Specifications v4.1 — AI Debug Agent*
+*Stack: LangGraph.js + MCP + Hono + OpenAI-compatible SDK + Playwright + source-map + pino + TypeScript*
 *v4.0: Investigation-First — Pre-flight → Scout → Hypothesize → [Investigator ↔ Explorer] → Source Map → Synthesize*
 *v4.0.1: Investigation Mode — interactive / autonomous*
 *v4.0.2: Pre-flight clarification, Import chain tracing, Source map fallback, Bug Pattern Catalogue*
 *v4.0.3: Antigravity Browser Subagent — Investigator (Tier 1) viết BrowserTask, Explorer (Tier 2) thực thi one-shot qua ReusedSubagentId*
+*v4.1: Service Architecture — MCP + REST dual interface, SSE streaming, callbackUrl for cloud ask_user*

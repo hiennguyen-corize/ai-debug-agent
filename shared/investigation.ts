@@ -10,6 +10,7 @@ export const INVESTIGATION_STATUS = {
   WAITING_EXPLORER: 'waiting_explorer',
   SOURCE_ANALYSIS: 'source_analysis',
   SYNTHESIZING: 'synthesizing',
+  NEEDS_USER_INPUT: 'needs_user_input',
   DONE: 'done',
   ERROR: 'error',
   CANNOT_DETERMINE: 'cannot_determine',

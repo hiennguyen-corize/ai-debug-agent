@@ -71,3 +71,17 @@ export type {
   ModelTier,
   ModelProfile,
 } from './model.js';
+
+export {
+  REPORT_SEVERITY,
+} from './domain.js';
+
+export type {
+  NetworkError,
+  ScoutObservation,
+  UserClarification,
+  SourceMapResolution,
+  CodeAnalysis,
+  ReportSeverity,
+  InvestigationReport,
+} from './domain.js';

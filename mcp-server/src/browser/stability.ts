@@ -42,29 +42,25 @@ export const computeStabilityScore = (selector: string): number => {
   return STABILITY_FALLBACK;
 };
 
-const buildCandidates = (attrs: ElementAttributes): SelectorCandidate[] => {
-  const candidates: SelectorCandidate[] = [];
+const addAttrCandidates = (attrs: ElementAttributes, candidates: SelectorCandidate[]): void => {
+  if (attrs.id !== '') candidates.push({ selector: `#${attrs.id}`, score: STABILITY_ID });
+  if (attrs.testId !== null) candidates.push({ selector: `[data-testid="${attrs.testId}"]`, score: STABILITY_TEST_ID });
+  if (attrs.ariaLabel !== null) candidates.push({ selector: `${attrs.tag}[aria-label="${attrs.ariaLabel}"]`, score: STABILITY_ARIA_LABEL });
+  if (attrs.name !== null) candidates.push({ selector: `${attrs.tag}[name="${attrs.name}"]`, score: STABILITY_NAME });
+};
 
-  if (attrs.id !== '') {
-    candidates.push({ selector: `#${attrs.id}`, score: STABILITY_ID });
-  }
-  if (attrs.testId !== null) {
-    candidates.push({ selector: `[data-testid="${attrs.testId}"]`, score: STABILITY_TEST_ID });
-  }
-  if (attrs.ariaLabel !== null) {
-    candidates.push({ selector: `${attrs.tag}[aria-label="${attrs.ariaLabel}"]`, score: STABILITY_ARIA_LABEL });
-  }
-  if (attrs.name !== null) {
-    candidates.push({ selector: `${attrs.tag}[name="${attrs.name}"]`, score: STABILITY_NAME });
-  }
+const addClassCandidate = (attrs: ElementAttributes, candidates: SelectorCandidate[]): void => {
   if (typeof attrs.className === 'string' && attrs.className.trim() !== '') {
     const firstClass = attrs.className.trim().split(/\s+/)[0];
-    if (firstClass !== undefined) {
-      candidates.push({ selector: `${attrs.tag}.${firstClass}`, score: STABILITY_TAG_CLASS });
-    }
+    if (firstClass !== undefined) candidates.push({ selector: `${attrs.tag}.${firstClass}`, score: STABILITY_TAG_CLASS });
   }
-  candidates.push({ selector: attrs.tag, score: STABILITY_TAG });
+};
 
+const buildCandidates = (attrs: ElementAttributes): SelectorCandidate[] => {
+  const candidates: SelectorCandidate[] = [];
+  addAttrCandidates(attrs, candidates);
+  addClassCandidate(attrs, candidates);
+  candidates.push({ selector: attrs.tag, score: STABILITY_TAG });
   return candidates;
 };
 

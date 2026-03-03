@@ -9,6 +9,8 @@ import {
   FILL_TIMEOUT_MS,
   FILL_SPA_WAIT_MS,
   DEFAULT_SPA_WAIT_MS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  DEFAULT_SCROLL_PIXELS,
   NAVIGATE_SPA_WAIT_MS,
   SPA_SETTLE_DELAY_MS,
   NAVIGATION_TIMEOUT_MS,
@@ -103,6 +105,39 @@ export const hoverElement = async (
 ): Promise<ActionResult> => {
   try {
     await page.locator(selector).first().hover({ timeout: CLICK_TIMEOUT_MS });
+    return { success: true };
+  } catch (err) {
+    return failResult(err);
+  }
+};
+
+export const waitForCondition = async (
+  page: Page,
+  selector?: string,
+  timeoutMs?: number,
+): Promise<ActionResult> => {
+  const timeout = timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
+  try {
+    if (selector !== undefined) {
+      await page.locator(selector).first().waitFor({ state: 'visible', timeout });
+    } else {
+      await page.waitForTimeout(timeout);
+    }
+    return { success: true };
+  } catch (err) {
+    return failResult(err);
+  }
+};
+
+export const scrollPage = async (
+  page: Page,
+  direction: 'up' | 'down' = 'down',
+  pixels: number = DEFAULT_SCROLL_PIXELS,
+): Promise<ActionResult> => {
+  try {
+    const delta = direction === 'down' ? pixels : -pixels;
+    await page.mouse.wheel(0, delta);
+    await waitForSPA(page, SPA_SETTLE_DELAY_MS);
     return { success: true };
   } catch (err) {
     return failResult(err);

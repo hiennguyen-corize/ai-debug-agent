@@ -3,7 +3,7 @@
  */
 
 import type { Page, ElementHandle } from 'playwright';
-import type { DomElement, DomSnapshot } from '../types/index.js';
+import type { DomElement, DomSnapshot, SelectorCandidate } from '../types/index.js';
 import { DEFAULT_MAX_ELEMENTS, ELEMENT_TEXT_MAX_LENGTH } from '../constants.js';
 import { findBestSelector } from './stability.js';
 
@@ -20,38 +20,46 @@ const INTERACTIVE_SELECTOR = [
   ...INTERACTIVE_TAGS, '[role]', '[onclick]', '[data-testid]', '[contenteditable]',
 ].join(', ');
 
+const ATTRS_TO_EXTRACT = ['type', 'href', 'placeholder', 'value', 'disabled', 'checked'] as const;
+
+const evaluateAttributes = async (handle: ElementHandle): Promise<Record<string, string>> =>
+  handle.evaluate((el, attrs) => {
+    const result: Record<string, string> = { tag: el.tagName.toLowerCase() };
+    for (const attr of attrs) {
+      const val = el.getAttribute(attr);
+      if (val !== null) result[attr] = val;
+    }
+    return result;
+  }, [...ATTRS_TO_EXTRACT]);
+
+const toDomElement = (
+  handle: { isVisible: boolean; text: string; role: string | null },
+  attrs: Record<string, string>,
+  selector: SelectorCandidate,
+): DomElement => {
+  const tag = attrs['tag'] ?? 'unknown';
+  return {
+    tag,
+    selector: selector.selector,
+    stabilityScore: selector.score,
+    text: handle.text,
+    attributes: attrs,
+    isVisible: handle.isVisible,
+    isInteractive: INTERACTIVE_TAGS.has(tag) || (handle.role !== null && INTERACTIVE_ROLES.has(handle.role)),
+  };
+};
+
 const extractElement = async (
   handle: ElementHandle,
   page: Page,
 ): Promise<DomElement | null> => {
   try {
     const isVisible = await handle.isVisible();
-    const rawText = await handle.innerText().catch(() => '');
-    const text = rawText.trim().slice(0, ELEMENT_TEXT_MAX_LENGTH);
-    const selectorCandidate = await findBestSelector(handle, page);
-
-    const attrs = await handle.evaluate((el) => {
-      const result: Record<string, string> = {};
-      result['tag'] = el.tagName.toLowerCase();
-      for (const attr of ['type', 'href', 'placeholder', 'value', 'disabled', 'checked']) {
-        const val = el.getAttribute(attr);
-        if (val !== null) result[attr] = val;
-      }
-      return result;
-    });
-
-    const tag = attrs['tag'] ?? 'unknown';
+    const text = (await handle.innerText().catch(() => '')).trim().slice(0, ELEMENT_TEXT_MAX_LENGTH);
     const role = await handle.getAttribute('role');
-
-    return {
-      tag,
-      selector: selectorCandidate.selector,
-      stabilityScore: selectorCandidate.score,
-      text,
-      attributes: attrs,
-      isVisible,
-      isInteractive: INTERACTIVE_TAGS.has(tag) || (role !== null && INTERACTIVE_ROLES.has(role)),
-    };
+    const attrs = await evaluateAttributes(handle);
+    const selector = await findBestSelector(handle, page);
+    return toDomElement({ isVisible, text, role }, attrs, selector);
   } catch {
     return null;
   }

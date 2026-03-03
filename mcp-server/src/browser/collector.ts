@@ -3,8 +3,8 @@
  */
 
 import type { Page, Request, Response, ConsoleMessage } from 'playwright';
-import type { CapturedRequest, CapturedLog, CorrelatedEvidence, ConsoleLogType } from '../types/index.js';
-import { CORRELATION_WINDOW_MS, CONSOLE_LOG_TYPE, HTTP_ERROR_MIN_STATUS, isConsoleLogType } from '../constants.js';
+import type { CapturedRequest, CapturedLog, CorrelatedEvidence, ConsoleLogType, NetworkPayload } from '../types/index.js';
+import { CORRELATION_WINDOW_MS, CONSOLE_LOG_TYPE, HTTP_ERROR_MIN_STATUS, RESPONSE_BODY_MAX_BYTES, isConsoleLogType } from '../constants.js';
 
 const toConsoleLogType = (raw: string): ConsoleLogType =>
   isConsoleLogType(raw) ? raw : CONSOLE_LOG_TYPE.LOG;
@@ -42,9 +42,26 @@ const buildConsoleLog = (actionId: string, msg: ConsoleMessage): CapturedLog => 
   timestamp: Date.now(),
 });
 
+type StoredPayload = {
+  request: Request;
+  response: Response;
+};
+
+const safeResponseBody = async (response: Response): Promise<string> => {
+  try {
+    const body = await response.body();
+    return body.length > RESPONSE_BODY_MAX_BYTES
+      ? body.subarray(0, RESPONSE_BODY_MAX_BYTES).toString('utf-8') + '…[truncated]'
+      : body.toString('utf-8');
+  } catch { return ''; }
+};
+
+const headersToRecord = (headers: Record<string, string>): Record<string, string> => ({ ...headers });
+
 export class PageCollector {
   private networkLogs: CapturedRequest[] = [];
   private consoleLogs: CapturedLog[] = [];
+  private payloads: StoredPayload[] = [];
   private activeActionId = 'passive';
   private listening = false;
 
@@ -55,6 +72,7 @@ export class PageCollector {
   private readonly onResponse = (response: Response): void => {
     const pending = findPendingRequest(this.networkLogs, response.url());
     if (pending !== undefined) updateRequestWithResponse(pending, response);
+    this.payloads.push({ request: response.request(), response });
   };
 
   private readonly onConsole = (msg: ConsoleMessage): void => {
@@ -86,9 +104,28 @@ export class PageCollector {
   getConsoleErrors = (): CapturedLog[] => this.consoleLogs.filter((l) => l.type === CONSOLE_LOG_TYPE.ERROR);
   getNetworkErrors = (): CapturedRequest[] => this.networkLogs.filter((l) => l.status >= HTTP_ERROR_MIN_STATUS);
 
+  getPayloadForUrl = async (urlPattern: string): Promise<NetworkPayload[]> => {
+    const matches = this.payloads.filter((p) => p.request.url().includes(urlPattern));
+    const results: NetworkPayload[] = [];
+    for (const m of matches) {
+      results.push({
+        requestUrl: m.request.url(),
+        requestMethod: m.request.method(),
+        requestHeaders: headersToRecord(m.request.headers()),
+        requestBody: m.request.postData() ?? null,
+        responseStatus: m.response.status(),
+        responseHeaders: headersToRecord(await m.response.allHeaders()),
+        responseBody: await safeResponseBody(m.response),
+        responseTimeMs: 0,
+      });
+    }
+    return results;
+  };
+
   clear = (): void => {
     this.networkLogs = [];
     this.consoleLogs = [];
+    this.payloads = [];
   };
 }
 

@@ -1,10 +1,11 @@
 /**
- * Report registry — lowdb JSON persistence + deduplication.
+ * Report registry — JSON persistence + deduplication.
  */
 
 import { join } from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import type { InvestigationReport, ReportSeverity } from '@ai-debug/shared';
+import { RegistrySchema } from '../schemas/responses.js';
 
 const REGISTRY_FILE = 'report-registry.json';
 const REPORTS_DIR = './debug-reports';
@@ -12,7 +13,7 @@ const REPORTS_DIR = './debug-reports';
 type RegistryEntry = {
   id: string;
   url: string;
-  severity: ReportSeverity;
+  severity: string;
   rootCause: string;
   filePath: string;
   timestamp: string;
@@ -26,7 +27,7 @@ const loadRegistry = async (dir?: string): Promise<Registry> => {
   const filePath = join(dir ?? REPORTS_DIR, REGISTRY_FILE);
   try {
     const content = await readFile(filePath, 'utf-8');
-    return JSON.parse(content) as Registry;
+    return RegistrySchema.parse(JSON.parse(content));
   } catch {
     return { reports: [] };
   }

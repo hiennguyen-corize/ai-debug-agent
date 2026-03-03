@@ -13,14 +13,13 @@ const AGENT_ROLE_MAP = {
   synthesis: 'investigator',
 } as const;
 
+type RoleKey = keyof typeof AGENT_ROLE_MAP;
+type LLMConfigKey = 'investigator' | 'explorer' | 'scout';
+
 const resolveRoleConfig = (role: AgentName, config: AppConfig): LLMRoleConfig => {
-  const roleKey = AGENT_ROLE_MAP[role];
-  const llmConfig = config.llm;
-  const roleSpecific = llmConfig[roleKey as keyof typeof llmConfig];
-  if (roleSpecific !== undefined && typeof roleSpecific === 'object' && 'model' in roleSpecific) {
-    return roleSpecific as LLMRoleConfig;
-  }
-  return llmConfig.default;
+  const roleKey = AGENT_ROLE_MAP[role as RoleKey] as LLMConfigKey;
+  const roleSpecific = config.llm[roleKey];
+  return roleSpecific ?? config.llm.default;
 };
 
 export type LLMClient = {

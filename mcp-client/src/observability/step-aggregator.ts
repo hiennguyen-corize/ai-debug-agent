@@ -73,9 +73,14 @@ const aggregateError = (event: Extract<AgentEvent, { type: 'error' }>): Investig
   summary: event.message,
 });
 
+const extractAgent = (event: AgentEvent): InvestigationStep['agent'] => {
+  if ('agent' in event) return (event as Extract<AgentEvent, { agent: unknown }>).agent;
+  return AGENT_NAME.INVESTIGATOR;
+};
+
 const aggregateFallback = (event: AgentEvent): InvestigationStep => ({
   timestamp: now(),
-  agent: 'agent' in event ? (event as { agent: string }).agent as InvestigationStep['agent'] : AGENT_NAME.INVESTIGATOR,
+  agent: extractAgent(event),
   type: STEP_TYPE.RESULT,
   summary: event.type,
   metadata: { raw: event },

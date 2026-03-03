@@ -9,7 +9,7 @@ import { createLogger } from './observability/logger.js';
 import { createInvestigationGraph } from './graph/index.js';
 import { saveReport } from './reporter/report.js';
 import { addToRegistry, isDuplicate } from './reporter/registry.js';
-import { AGENT_NAME, type InvestigationRequest } from '@ai-debug/shared';
+import { AGENT_NAME, type InvestigationRequest, type InvestigationReport } from '@ai-debug/shared';
 import { createInterface } from 'node:readline/promises';
 
 const createPromptUser = (): ((question: string) => Promise<string>) => {
@@ -31,16 +31,14 @@ const buildLLMClients = (config: Awaited<ReturnType<typeof loadConfig>>) => ({
 });
 
 const handleReport = async (
-  result: { finalReport: unknown },
+  report: InvestigationReport | null,
   config: Awaited<ReturnType<typeof loadConfig>>,
 ): Promise<void> => {
-  const report = result.finalReport;
-  if (report === null || report === undefined) return;
-  const reportTyped = report as Awaited<ReturnType<typeof saveReport>> extends string ? never : Parameters<typeof isDuplicate>[0];
-  const duplicate = await isDuplicate(reportTyped);
+  if (report === null) return;
+  const duplicate = await isDuplicate(report);
   if (!duplicate) {
-    const reportPath = await saveReport(reportTyped, config.output.reportsDir);
-    await addToRegistry(reportTyped, reportPath, config.output.reportsDir);
+    const reportPath = await saveReport(report, config.output.reportsDir);
+    await addToRegistry(report, reportPath, config.output.reportsDir);
     console.log(`\n✅ Report saved: ${reportPath}`);
   } else {
     console.log('\n⚠️ Duplicate report — skipped');
@@ -65,6 +63,6 @@ export const runInvestigation = async (request: InvestigationRequest): Promise<v
     investigationMode: request.mode,
   });
 
-  await handleReport(result, config);
+  await handleReport(result.finalReport, config);
   logger.detach();
 };

@@ -2,6 +2,7 @@
  * Tool call parser — extract tool calls from LLM responses.
  */
 
+import { z } from 'zod';
 import type OpenAI from 'openai';
 
 export type ParsedToolCall = {
@@ -10,9 +11,11 @@ export type ParsedToolCall = {
   args: Record<string, unknown>;
 };
 
+const ToolArgsSchema = z.record(z.string(), z.unknown());
+
 const parseArguments = (raw: string): Record<string, unknown> => {
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    return ToolArgsSchema.parse(JSON.parse(raw));
   } catch {
     return {};
   }

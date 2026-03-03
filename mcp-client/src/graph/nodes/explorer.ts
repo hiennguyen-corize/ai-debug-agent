@@ -14,6 +14,7 @@ import type { AgentState } from '../state.js';
 import type { EventBus } from '../../observability/event-bus.js';
 import type { LLMClient } from '../../agent/llm-client.js';
 import { EXPLORER_SYSTEM_PROMPT } from '../../agent/prompts.js';
+import { DispatchTaskResponseSchema } from '../../schemas/responses.js';
 
 type ExplorerDeps = {
   llmClient: LLMClient;
@@ -22,32 +23,26 @@ type ExplorerDeps = {
 };
 
 const buildTaskResult = (raw: unknown): BrowserTaskResult => {
-  const data = raw as Record<string, unknown>;
-  const errorVal = data['error'];
+  const data = DispatchTaskResponseSchema.parse(raw);
   return {
-    observations: (data['observations'] as string[]) ?? [],
+    observations: data.observations,
     networkActivity: [],
     consoleActivity: [],
     screenshotPaths: [],
-    ...(typeof errorVal === 'string' ? { error: errorVal } : {}),
+    ...(data.error !== undefined ? { error: data.error } : {}),
   };
 };
 
-const taskResultToEvidence = (result: BrowserTaskResult, hypothesisId: string): Evidence[] => {
-  const evidence: Evidence[] = [];
-  for (const obs of result.observations) {
-    evidence.push({
-      id: `explorer-${crypto.randomUUID().slice(0, 8)}`,
-      hypothesisId,
-      category: EVIDENCE_CATEGORY.DOM,
-      type: EVIDENCE_TYPE.DOM_ANOMALY,
-      description: obs,
-      data: obs,
-      timestamp: Date.now(),
-    });
-  }
-  return evidence;
-};
+const taskResultToEvidence = (result: BrowserTaskResult, hypothesisId: string): Evidence[] =>
+  result.observations.map((obs) => ({
+    id: `explorer-${crypto.randomUUID().slice(0, 8)}`,
+    hypothesisId,
+    category: EVIDENCE_CATEGORY.DOM,
+    type: EVIDENCE_TYPE.DOM_ANOMALY,
+    description: obs,
+    data: obs,
+    timestamp: Date.now(),
+  }));
 
 const dispatchTask = async (state: AgentState, deps: ExplorerDeps): Promise<BrowserTaskResult> => {
   const task = state.pendingBrowserTask;
@@ -76,4 +71,3 @@ export const createExplorerNode = (deps: ExplorerDeps) =>
     const result = await dispatchTask(state, deps);
     return buildStateUpdate(state, result);
   };
-

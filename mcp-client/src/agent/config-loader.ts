@@ -3,85 +3,79 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { z } from 'zod';
 import type { InvestigationRequest } from '@ai-debug/shared';
 
 const CONFIG_FILE_NAME = 'ai-debug.config.json';
 
-const DEFAULT_CONFIG = {
-  baseUrl: 'http://localhost:3000',
-  llm: {
-    default: {
-      provider: 'ollama',
-      baseURL: 'http://localhost:11434/v1',
-      model: 'qwen2.5:7b',
-      apiKey: '',
-    },
-  },
-  agent: {
-    maxIterations: 30,
-    taskTimeoutMs: 90_000,
-    tokenBudgetRatio: 0.85,
-    maxRetries: 3,
-    retryBaseDelayMs: 1_000,
-    mode: 'interactive' as const,
-  },
-  browser: {
-    headless: true,
-    slowMo: 0,
-    timeout: 30_000,
-    viewport: { width: 1280, height: 720 },
-  },
-  sourcemap: {
-    enabled: true,
-    localPath: null as string | null,
-    buildDir: './dist',
-  },
-  guardrails: { allowList: [] as string[] },
-  output: {
-    reportsDir: './debug-reports',
-    deduplicationThreshold: 0.85,
-    streamLevel: 'summary' as const,
-  },
-} as const;
+const LLMRoleSchema = z.object({
+  provider: z.string(),
+  baseURL: z.string(),
+  model: z.string(),
+  apiKey: z.string(),
+});
 
-export type AppConfig = typeof DEFAULT_CONFIG & {
-  llm: {
-    default: LLMRoleConfig;
-    investigator?: LLMRoleConfig;
-    explorer?: LLMRoleConfig;
-    scout?: LLMRoleConfig;
-  };
-};
+export type LLMRoleConfig = z.infer<typeof LLMRoleSchema>;
 
-export type LLMRoleConfig = {
-  provider: string;
-  baseURL: string;
-  model: string;
-  apiKey: string;
-};
+const AppConfigSchema = z.object({
+  baseUrl: z.string().default('http://localhost:3000'),
+  llm: z.object({
+    default: LLMRoleSchema.default({
+      provider: 'ollama', baseURL: 'http://localhost:11434/v1',
+      model: 'qwen2.5:7b', apiKey: '',
+    }),
+    investigator: LLMRoleSchema.optional(),
+    explorer: LLMRoleSchema.optional(),
+    scout: LLMRoleSchema.optional(),
+  }).default({}),
+  agent: z.object({
+    maxIterations: z.number().default(30),
+    taskTimeoutMs: z.number().default(90_000),
+    tokenBudgetRatio: z.number().default(0.85),
+    maxRetries: z.number().default(3),
+    retryBaseDelayMs: z.number().default(1_000),
+    mode: z.enum(['interactive', 'autonomous']).default('interactive'),
+  }).default({}),
+  browser: z.object({
+    headless: z.boolean().default(true),
+    slowMo: z.number().default(0),
+    timeout: z.number().default(30_000),
+    viewport: z.object({ width: z.number(), height: z.number() }).default({ width: 1280, height: 720 }),
+  }).default({}),
+  sourcemap: z.object({
+    enabled: z.boolean().default(true),
+    localPath: z.string().nullable().default(null),
+    buildDir: z.string().default('./dist'),
+  }).default({}),
+  guardrails: z.object({
+    allowList: z.array(z.string()).default([]),
+  }).default({}),
+  output: z.object({
+    reportsDir: z.string().default('./debug-reports'),
+    deduplicationThreshold: z.number().default(0.85),
+    streamLevel: z.enum(['summary', 'verbose']).default('summary'),
+  }).default({}),
+});
 
-const resolveEnvVars = (value: string): string => {
-  if (value.startsWith('$')) {
-    const envKey = value.slice(1);
-    return process.env[envKey] ?? '';
-  }
-  return value;
-};
+export type AppConfig = z.infer<typeof AppConfigSchema>;
 
-const resolveConfigApiKeys = (config: Record<string, unknown>): void => {
-  for (const [key, value] of Object.entries(config)) {
+const resolveEnvVars = (value: string): string =>
+  value.startsWith('$') ? (process.env[value.slice(1)] ?? '') : value;
+
+const resolveConfigApiKeys = (obj: Record<string, unknown>): void => {
+  for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string') {
-      (config as Record<string, string>)[key] = resolveEnvVars(value);
-    } else if (typeof value === 'object' && value !== null) {
+      obj[key] = resolveEnvVars(value);
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       resolveConfigApiKeys(value as Record<string, unknown>);
     }
   }
 };
 
-const loadFromFile = async (): Promise<Record<string, unknown>> => {
+const loadFromFile = async (): Promise<unknown> => {
   try {
     const raw = await readFile(CONFIG_FILE_NAME, 'utf-8');
-    return JSON.parse(raw) as Record<string, unknown>;
+    return JSON.parse(raw) as unknown;
   } catch {
     return {};
   }
@@ -90,13 +84,12 @@ const loadFromFile = async (): Promise<Record<string, unknown>> => {
 const deepMerge = (base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> => {
   const result = { ...base };
   for (const [key, val] of Object.entries(override)) {
-    if (val !== undefined && val !== null) {
-      const baseVal = result[key];
-      if (typeof val === 'object' && !Array.isArray(val) && typeof baseVal === 'object' && baseVal !== null) {
-        result[key] = deepMerge(baseVal as Record<string, unknown>, val as Record<string, unknown>);
-      } else {
-        result[key] = val;
-      }
+    if (val === undefined || val === null) continue;
+    const baseVal = result[key];
+    if (typeof val === 'object' && !Array.isArray(val) && typeof baseVal === 'object' && baseVal !== null) {
+      result[key] = deepMerge(baseVal as Record<string, unknown>, val as Record<string, unknown>);
+    } else {
+      result[key] = val;
     }
   }
   return result;
@@ -104,10 +97,10 @@ const deepMerge = (base: Record<string, unknown>, override: Record<string, unkno
 
 export const loadConfig = async (requestOverrides?: InvestigationRequest['config']): Promise<AppConfig> => {
   const fileConfig = await loadFromFile();
-  const merged = deepMerge(DEFAULT_CONFIG as unknown as Record<string, unknown>, fileConfig);
-  if (requestOverrides !== undefined) {
-    deepMerge(merged, requestOverrides as unknown as Record<string, unknown>);
-  }
-  resolveConfigApiKeys(merged);
-  return merged as unknown as AppConfig;
+  const merged = typeof fileConfig === 'object' && fileConfig !== null
+    ? deepMerge(fileConfig as Record<string, unknown>, (requestOverrides ?? {}) as Record<string, unknown>)
+    : (requestOverrides ?? {});
+  const config = AppConfigSchema.parse(merged);
+  resolveConfigApiKeys(config as unknown as Record<string, unknown>);
+  return config;
 };

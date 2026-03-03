@@ -7,6 +7,12 @@ import type { AgentState } from '../state.js';
 import type { EventBus } from '../../observability/event-bus.js';
 import type { LLMClient } from '../../agent/llm-client.js';
 import { SCOUT_SYSTEM_PROMPT } from '../../agent/prompts.js';
+import {
+  NavigateResponseSchema,
+  ConsoleLogsResponseSchema,
+  NetworkLogsResponseSchema,
+  DomResponseSchema,
+} from '../../schemas/responses.js';
 
 type ScoutDeps = {
   llmClient: LLMClient;
@@ -21,26 +27,26 @@ const collectObservations = async (
 ): Promise<{ observations: ScoutObservation; sessionId: string; evidence: Evidence[] }> => {
   deps.eventBus.emit({ type: 'investigation_phase', phase: 'scouting' });
 
-  const navResult = await deps.mcpCall('browser_navigate', { url }) as { sessionId?: string };
+  const navResult = NavigateResponseSchema.parse(await deps.mcpCall('browser_navigate', { url }));
   const sessionId = navResult.sessionId ?? crypto.randomUUID();
 
-  const consoleLogs = await deps.mcpCall('get_console_logs', { sessionId }) as { logs?: Array<{ type: string; text: string }> };
-  const networkLogs = await deps.mcpCall('get_network_logs', { sessionId }) as { logs?: Array<{ method: string; url: string; status: number }> };
-  const dom = await deps.mcpCall('browser_get_dom', { sessionId }) as { title?: string; elements?: unknown[] };
+  const consoleLogs = ConsoleLogsResponseSchema.parse(await deps.mcpCall('get_console_logs', { sessionId }));
+  const networkLogs = NetworkLogsResponseSchema.parse(await deps.mcpCall('get_network_logs', { sessionId }));
+  const dom = DomResponseSchema.parse(await deps.mcpCall('browser_get_dom', { sessionId }));
 
-  const consoleErrors = (consoleLogs.logs ?? []).filter((l) => l.type === 'error').map((l) => l.text);
-  const networkErrors = (networkLogs.logs ?? []).filter((l) => l.status >= 400).map((l) => ({
+  const consoleErrors = consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text);
+  const networkErrors = networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
     url: l.url, method: l.method, status: l.status, statusText: '',
   }));
 
   const observations: ScoutObservation = {
     url,
-    pageTitle: dom.title ?? '',
+    pageTitle: dom.title,
     consoleErrors,
     networkErrors,
     suspiciousPatterns: [],
-    domSnapshot: JSON.stringify(dom.elements ?? []).slice(0, 2000),
-    bundleUrls: (networkLogs.logs ?? []).filter((l) => l.url.endsWith('.js')).map((l) => l.url),
+    domSnapshot: JSON.stringify(dom.elements).slice(0, 2000),
+    bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
     timestamp: new Date().toISOString(),
   };
 

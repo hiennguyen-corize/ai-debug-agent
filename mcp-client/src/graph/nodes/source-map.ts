@@ -10,6 +10,7 @@ import {
 } from '@ai-debug/shared';
 import type { AgentState } from '../state.js';
 import type { EventBus } from '../../observability/event-bus.js';
+import { FetchSourceMapResponseSchema, ResolveErrorLocationResponseSchema } from '../../schemas/responses.js';
 
 type SourceMapDeps = {
   eventBus: EventBus;
@@ -21,12 +22,12 @@ const resolveFirstError = async (
   deps: SourceMapDeps,
 ): Promise<{ resolution: SourceMapResolution; codeSnippet: string } | null> => {
   for (const bundleUrl of bundleUrls) {
-    const fetchResult = await deps.mcpCall('fetch_source_map', { bundleUrl }) as { success?: boolean };
-    if (fetchResult.success !== true) continue;
+    const fetchResult = FetchSourceMapResponseSchema.parse(await deps.mcpCall('fetch_source_map', { bundleUrl }));
+    if (!fetchResult.success) continue;
 
-    const resolveResult = await deps.mcpCall('resolve_error_location', {
-      bundleUrl, line: 1, column: 0,
-    }) as { originalFile?: string; originalLine?: number; originalColumn?: number; surroundingCode?: string };
+    const resolveResult = ResolveErrorLocationResponseSchema.parse(
+      await deps.mcpCall('resolve_error_location', { bundleUrl, line: 1, column: 0 }),
+    );
 
     if (resolveResult.originalFile === undefined) continue;
 
@@ -55,9 +56,7 @@ const resolveFirstError = async (
 export const createSourceMapNode = (deps: SourceMapDeps) =>
   async (state: AgentState): Promise<Partial<AgentState>> => {
     const bundleUrls = state.initialObservations?.bundleUrls ?? [];
-    if (bundleUrls.length === 0) {
-      return { status: INVESTIGATION_STATUS.INVESTIGATING };
-    }
+    if (bundleUrls.length === 0) return { status: INVESTIGATION_STATUS.INVESTIGATING };
 
     const result = await resolveFirstError(bundleUrls, deps);
     if (result === null) {

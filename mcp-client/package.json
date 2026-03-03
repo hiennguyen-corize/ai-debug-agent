@@ -1,0 +1,32 @@
+{
+    "name": "@ai-debug/mcp-client",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "dev": "node --watch dist/index.js"
+    },
+    "dependencies": {
+        "openai": "^4.80.0",
+        "@langchain/langgraph": "^0.2.0",
+        "@langchain/core": "^0.3.0",
+        "better-sqlite3": "^11.0.0",
+        "js-tiktoken": "^1.0.0",
+        "p-retry": "^6.2.0",
+        "partial-json": "^0.1.0",
+        "lowdb": "^7.0.0",
+        "natural": "^8.0.0",
+        "pino": "^9.0.0",
+        "signal-exit": "^4.1.0",
+        "zod": "^3.24.0",
+        "dotenv": "^16.4.0"
+    },
+    "optionalDependencies": {
+        "ink": "^5.0.0",
+        "react": "^18.3.0",
+        "commander": "^13.0.0"
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "name": "@ai-debug/shared",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "./types.ts",
+    "types": "./types.ts",
+    "exports": {
+        ".": {
+            "types": "./types.ts",
+            "default": "./dist/types.js"
+        },
+        "./types.js": {
+            "types": "./types.ts",
+            "default": "./dist/types.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "zod": "^3.24.0"
+    }
+}

@@ -1,13 +1,14 @@
 # AI Debug Agent — .agent Architecture
 
-> **Project:** AI Debug Agent — CLI tool for automated web app debugging
-> **Stack:** TypeScript, LangGraph.js, MCP Protocol, Playwright, ink
+> **Project:** AI Debug Agent — Investigation Service for automated web app debugging
+> **Stack:** TypeScript, LangGraph.js, MCP Protocol, Playwright, Hono, pino
+> **Specs:** v4.1 — Service Architecture (MCP + REST dual interface)
 
 ---
 
 ## 📋 Overview
 
-The `.agent` directory provides AI development assistance for building and maintaining the AI Debug Agent tool. It contains:
+The `.agent` directory provides AI development assistance for building and maintaining the AI Debug Agent. It contains:
 - **3 Specialist Agents** — Role-based AI personas
 - **6 Skills** — Domain-specific knowledge modules
 - **10 Workflows** — Slash command procedures
@@ -18,21 +19,25 @@ The `.agent` directory provides AI development assistance for building and maint
 
 ```
 ai-debug-agent/
-├── mcp-server/          # MCP Server — browser tools via stdio
-│   ├── src/tools/       # 12 tool definitions (navigate, click, fill, etc.)
-│   ├── src/browser/     # Playwright engine + guardrails + DOM extraction
+├── api/                 # Hono REST server (POST /investigate, SSE stream)
+│   ├── routes/          # investigate.ts, reports.ts
+│   └── middleware/      # API key auth
+├── mcp-server/          # MCP Server — browser tools + investigate_bug tool
+│   ├── src/tools/       # 16 tool definitions (navigate, click, fill, get-dom, etc.)
+│   ├── src/browser/     # Playwright engine + guardrails + DOM extraction + collector
+│   ├── src/sourcemap/   # Fetcher, resolver, reader, tracer, fallback
 │   └── src/types/
-├── mcp-client/          # Multi-Agent orchestration
-│   ├── src/graph/       # LangGraph StateGraph + nodes
-│   ├── src/agents/      # Explorer, Analyzer, Reporter agents
-│   ├── src/agent/       # LLM client, tool parser, prompts
-│   ├── src/model/       # Model Auto-Profiler
-│   ├── src/auth/        # Auto-login
-│   ├── src/observability/ # TUI dashboard, EventBus, JSONL logger
-│   └── src/reporter/    # Report generation
-├── shared/              # Shared Zod schemas
+├── mcp-client/          # Investigation engine (LangGraph.js)
+│   ├── src/graph/       # StateGraph + nodes (Scout, Investigator, Explorer, Synthesis)
+│   ├── src/agent/       # LLM client, tool parser, config loader, prompts
+│   ├── src/model/       # Model Auto-Profiler (Tier 1/2/3)
+│   ├── src/auth/        # Auto-login (form + cookie)
+│   ├── src/observability/ # EventBus, StepAggregator, pino logger, optional TUI
+│   └── src/reporter/    # Report generation + registry (lowdb)
+├── shared/              # Shared Zod schemas (InvestigationRequest, BrowserTask, etc.)
 ├── fixture-app/         # Integration test app with intentional bugs
-├── specs.md             # Full project specification (source of truth)
+├── tests/               # Unit + integration tests (Vitest)
+├── specs.md             # Full project specification v4.1 (source of truth)
 └── ai-debug.config.json # Runtime configuration
 ```
 
@@ -56,7 +61,7 @@ ai-debug-agent/
 | `typescript-expert` | TypeScript type-level programming, performance |
 | `testing-patterns` | Vitest, testing strategies, AAA pattern |
 | `systematic-debugging` | 4-phase debugging methodology |
-| `api-patterns` | API/protocol design (MCP tools) |
+| `api-patterns` | API/protocol design (MCP tools, REST endpoints) |
 | `webapp-testing` | E2E, Playwright patterns |
 
 ---

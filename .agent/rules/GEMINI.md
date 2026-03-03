@@ -95,8 +95,9 @@ When user's prompt is NOT in English:
 
 | Project Type | Primary Agent | Skills |
 |--------------|---------------|--------|
-| **CLI/Agent Logic** | `debugger` | systematic-debugging, typescript-expert |
+| **Service/Agent Logic** | `debugger` | systematic-debugging, typescript-expert |
 | **MCP Server/Tools** | `explorer-agent` + `debugger` | api-patterns, typescript-expert |
+| **REST API (Hono)** | `debugger` | api-patterns, typescript-expert |
 | **Tests** | `test-engineer` | testing-patterns, webapp-testing |
 
 ### 🛑 Socratic Gate

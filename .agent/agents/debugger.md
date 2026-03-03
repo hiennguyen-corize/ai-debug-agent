@@ -1,6 +1,6 @@
 ---
 name: debugger
-description: Expert in systematic debugging, root cause analysis, and crash investigation. Primary agent for developing the AI Debug Agent tool. Use for complex bugs, debugging the agent itself, and improving detection patterns. Triggers on bug, error, crash, not working, broken, investigate, fix.
+description: Expert in systematic debugging, root cause analysis, and crash investigation. Primary agent for developing the AI Debug Agent service. Use for complex bugs, debugging the agent itself, and improving detection patterns. Triggers on bug, error, crash, not working, broken, investigate, fix.
 skills: clean-code, systematic-debugging, typescript-expert
 ---
 
@@ -22,16 +22,18 @@ skills: clean-code, systematic-debugging, typescript-expert
 
 ## Project Context
 
-This is the **AI Debug Agent** — a CLI tool that automates web app debugging using:
-- **Multi-Agent Architecture**: Explorer Agent, Analyzer Agent, Reporter Agent
-- **MCP Server**: Exposes browser tools via Model Context Protocol
-- **LangGraph.js**: Orchestrates agent flow with checkpointing
+This is the **AI Debug Agent** — an Investigation Service that automates web app debugging using:
+- **Investigation-First Architecture**: Scout → Investigator → Explorer → Synthesis
+- **MCP Server**: Exposes browser tools + `investigate_bug` tool via MCP
+- **REST API**: Hono server with SSE streaming for remote consumers
+- **LangGraph.js**: Orchestrates investigation flow with checkpointing
 - **Playwright**: Headless browser automation
-- **Model Auto-Profiler**: Adapts to different LLM tiers
+- **Model Auto-Profiler**: Adapts to different LLM tiers (Tier 1/2/3)
 
 Key files to understand:
-- `specs.md` — Full project specification
+- `specs.md` — Full project specification v4.1
 - `mcp-server/src/browser/actions.ts` — Guardrails + SPA handling
+- `mcp-server/src/browser/collector.ts` — Correlation tracing (actionId)
 - `mcp-client/src/graph/` — LangGraph state machine
 - `mcp-client/src/model/profiler.ts` — Model tier classification
 
@@ -46,13 +48,13 @@ PHASE 1: REPRODUCE
   • Document expected vs actual behavior
 
 PHASE 2: ISOLATE
-  • Which component? (MCP Server / Agent / Graph / Profiler)
+  • Which component? (API / MCP Server / Agent / Graph / Profiler)
   • When did it start? What changed?
   • Create minimal reproduction
 
 PHASE 3: UNDERSTAND (Root Cause)
   • Apply "5 Whys" technique
-  • Trace data flow through the agent pipeline
+  • Trace data flow through the investigation pipeline
   • Identify the actual bug, not the symptom
 
 PHASE 4: FIX & VERIFY
@@ -66,14 +68,15 @@ PHASE 4: FIX & VERIFY
 
 ## Bug Categories for this Project
 
-### Agent Pipeline Issues
+### Investigation Pipeline Issues
 
 | Symptom | Investigation |
 |---------|--------------|
-| Explorer doesn't find element | Check `dom.ts` extraction, selector stability score |
-| Analyzer loops forever | Check routing function, maxIterations, evidence conditions |
-| Reporter generates bad markdown | Check FinishAnalysisPayload Zod validation |
-| BrowserTask timeout | Check profiler taskTimeoutMs, network conditions |
+| Scout doesn't detect errors | Check console/network collector, SPA wait timing |
+| Investigator loops forever | Check routing function, maxIterations, evidence sufficiency criteria |
+| Explorer returns empty results | Check `dom.ts` extraction, selector stability score, iFrame recursion |
+| Hypothesis confidence stuck | Check evidence sufficiency rules (min 2 types, direct observation) |
+| FinishInvestigation payload invalid | Check `FinishInvestigationSchema` Zod validation, retry count |
 | LLM returns malformed output | Check `tool-parser.ts` fallback chain |
 
 ### MCP Server Issues
@@ -84,14 +87,16 @@ PHASE 4: FIX & VERIFY
 | Guardrail blocks valid action | Check `DANGEROUS_KEYWORDS`, allowList config |
 | DOM extraction incomplete | Check iFrame recursion, element limit from profiler |
 | SPA wait too short/long | Check `spaWaitMs` per tier, config override |
+| Correlation tracing wrong | Check `collector.ts` time window, actionId propagation |
 
-### Model Profiler Issues
+### Service Layer Issues
 
 | Symptom | Investigation |
 |---------|--------------|
-| Unknown model → wrong tier | Check `TIER_PATTERNS` regex, fallback behavior |
-| Context overflow | Check `tokenBudgetRatio`, `trimToTokenBudget` |
-| Compression too aggressive | Check `compressThreshold` per tier |
+| REST API 500 | Check Hono routes, InvestigationRequestSchema validation |
+| SSE stream disconnects | Check EventBus subscription, StepAggregator, connection keepalive |
+| MCP progress not streaming | Check `notifications/message` emit in `investigate_bug` tool |
+| Config override not working | Check precedence: request > env > file > defaults |
 
 ---
 

@@ -1,0 +1,45 @@
+{
+    "llm": {
+        "investigator": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "baseURL": "https://api.openai.com/v1",
+            "apiKey": "$OPENAI_API_KEY"
+        },
+        "explorer": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "baseURL": "https://api.openai.com/v1",
+            "apiKey": "$OPENAI_API_KEY"
+        },
+        "scout": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "baseURL": "https://api.openai.com/v1",
+            "apiKey": "$OPENAI_API_KEY"
+        }
+    },
+    "agent": {
+        "mode": "autonomous",
+        "maxIterations": 60,
+        "maxRetries": 2,
+        "callbackUrl": null
+    },
+    "browser": {
+        "headless": true,
+        "spaWaitMs": null,
+        "guardrails": {
+            "allowPayment": false,
+            "allowDelete": false,
+            "allowLogout": false
+        }
+    },
+    "output": {
+        "reportDir": "./debug-reports",
+        "streamLevel": "summary"
+    },
+    "auth": {
+        "strategy": null,
+        "credentials": null
+    }
+}

@@ -6,6 +6,7 @@
 import { loadConfig } from '#agent/config-loader.js';
 import { createLLMClient } from '#agent/llm-client.js';
 import { createEventBus, type EventBus } from '#observability/event-bus.js';
+import { createInvestigationLogger } from '#observability/investigation-logger.js';
 import { createInvestigationGraph } from '#graph/index.js';
 import { saveReport } from '#reporter/report.js';
 import { addToRegistry, isDuplicate } from '#reporter/registry.js';
@@ -61,13 +62,25 @@ export const runInvestigationPipeline = async (
 
   if (deps.onEvent !== undefined) eventBus.subscribe(deps.onEvent);
 
-  const graph = await buildGraph(config, eventBus, deps);
-  const result = await graph.invoke({
-    url: request.url,
-    hint: request.hint ?? null,
-    investigationMode: request.mode,
-  });
+  const logger = await createInvestigationLogger(
+    eventBus,
+    request.url,
+    request.hint,
+    config.output.reportsDir,
+  );
 
-  await handleReport(result.finalReport, config.output.reportsDir);
-  return result.finalReport ?? null;
+  try {
+    const graph = await buildGraph(config, eventBus, deps);
+    const result = await graph.invoke({
+      url: request.url,
+      hint: request.hint ?? null,
+      investigationMode: request.mode,
+    }, { recursionLimit: 100 });
+
+    await handleReport(result.finalReport, config.output.reportsDir);
+    return result.finalReport ?? null;
+  } finally {
+    await logger.writeFooter();
+    logger.unsubscribe();
+  }
 };

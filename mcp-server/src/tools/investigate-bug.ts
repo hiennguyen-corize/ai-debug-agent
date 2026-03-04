@@ -6,6 +6,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import type { AgentEvent } from '@ai-debug/shared';
 import { TOOL_INVESTIGATE_BUG } from '#constants/tools.js';
 import { toolSuccess, toolError } from './helpers.js';
 
@@ -34,7 +35,7 @@ export const registerInvestigateBugTool = (server: McpServer): void => {
             { url: input.url, hint: input.hint, mode: input.mode },
             {
               mcpCall: bridge.call,
-              onEvent: (event) => {
+              onEvent: (event: AgentEvent) => {
                 const step = aggregateEvent(event);
                 void sendNotification({
                   method: 'notifications/message',

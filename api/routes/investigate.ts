@@ -35,7 +35,7 @@ const startInvestigation = (
           { url: thread.request.url, hint: thread.request.hint, mode: thread.request.mode },
           {
             mcpCall: bridge.call,
-            onEvent: (event) => { for (const sub of thread.subscribers) sub(event); },
+            onEvent: (event: AgentEvent) => { for (const sub of thread.subscribers) sub(event); },
             callbackUrl,
             configOverrides: config,
           },

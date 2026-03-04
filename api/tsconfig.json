@@ -2,8 +2,14 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": ".",
+    "paths": {
+      "#routes/*.js": ["./routes/*.ts"],
+      "#repositories/*.js": ["./repositories/*.ts"],
+      "#middleware/*.js": ["./middleware/*.ts"]
+    }
   },
   "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist"],
   "references": [{ "path": "../shared" }, { "path": "../mcp-client" }]
 }

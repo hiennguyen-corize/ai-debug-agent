@@ -2,7 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 *.db
-debug-reports/
+debug-reports/report-registry.json
 .env
 *.log
 .DS_Store

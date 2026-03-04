@@ -51,8 +51,14 @@ export const AgentStateAnnotation = Annotation.Root({
     default: () => [],
   }),
 
-  iterationCount: Annotation<number>,
-  maxIterations: Annotation<number>,
+  iterationCount: Annotation<number>({
+    reducer: (prev, next) => next,
+    default: () => 0,
+  }),
+  maxIterations: Annotation<number>({
+    reducer: (prev, next) => next,
+    default: () => 30,
+  }),
 
   detectedFrameworks: Annotation<string[]>({
     reducer: (prev, next) => next,

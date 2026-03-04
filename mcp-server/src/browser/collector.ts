@@ -79,12 +79,22 @@ export class PageCollector {
     this.consoleLogs.push(buildConsoleLog(this.activeActionId, msg));
   };
 
+  private readonly onPageError = (error: Error): void => {
+    this.consoleLogs.push({
+      actionId: this.activeActionId,
+      type: CONSOLE_LOG_TYPE.ERROR,
+      text: `Uncaught ${error.message}\n${error.stack ?? ''}`,
+      timestamp: Date.now(),
+    });
+  };
+
   start = (page: Page): void => {
     if (this.listening) return;
     this.listening = true;
     page.on('request', this.onRequest);
     page.on('response', this.onResponse);
     page.on('console', this.onConsole);
+    page.on('pageerror', this.onPageError);
   };
 
   stop = (page: Page): void => {
@@ -93,6 +103,7 @@ export class PageCollector {
     page.off('request', this.onRequest);
     page.off('response', this.onResponse);
     page.off('console', this.onConsole);
+    page.off('pageerror', this.onPageError);
   };
 
   setActiveAction = (actionId: string): void => {
@@ -148,16 +159,26 @@ const attachListeners = (
   const onConsole = (msg: ConsoleMessage): void => {
     if (isWithinWindow()) consoleEvents.push(buildConsoleLog(actionId, msg));
   };
+  const onPageError = (error: Error): void => {
+    if (isWithinWindow()) consoleEvents.push({
+      actionId,
+      type: CONSOLE_LOG_TYPE.ERROR,
+      text: `Uncaught ${error.message}\n${error.stack ?? ''}`,
+      timestamp: Date.now(),
+    });
+  };
 
   page.on('request', onRequest);
   page.on('response', onResponse);
   page.on('console', onConsole);
+  page.on('pageerror', onPageError);
 
   return {
     detach: (): void => {
       page.off('request', onRequest);
       page.off('response', onResponse);
       page.off('console', onConsole);
+      page.off('pageerror', onPageError);
     },
   };
 };

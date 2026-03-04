@@ -22,6 +22,8 @@
     "test:watch": "vitest",
     "dev:api": "npm run dev -w api",
     "dev:mcp": "npm run dev -w mcp-server",
+    "dev": "tsc --build && node api/dist/server.js",
+    "start": "node api/dist/server.js",
     "build": "tsc --build"
   },
   "devDependencies": {

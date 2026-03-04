@@ -2,6 +2,7 @@
  * Config loader — 3-layer: file → env → request override → defaults.
  */
 
+import 'dotenv/config';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { InvestigationRequest } from '@ai-debug/shared';

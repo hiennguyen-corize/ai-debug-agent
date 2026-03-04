@@ -55,11 +55,31 @@ pnpm run build
 
 ### 4. Configure
 
+#### Step 1: Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` — at minimum set LLM API keys:
+
+```bash
+# Required — at least one LLM provider
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=AIza...
+
+# Optional
+PORT=3100
+AI_DEBUG_API_KEY=your-secret
+```
+
+#### Step 2: Config File
+
 ```bash
 cp ai-debug.config.example.json ai-debug.config.json
 ```
 
-Edit `ai-debug.config.json` — at minimum set LLM API keys:
+Edit `ai-debug.config.json` — API keys reference env vars with `$` prefix:
 
 ```jsonc
 {
@@ -68,18 +88,18 @@ Edit `ai-debug.config.json` — at minimum set LLM API keys:
     "investigator": {
       "provider": "openai",
       "model": "gpt-4o",
-      "apiKey": "sk-..."
+      "apiKey": "$OPENAI_API_KEY"   // ← reads from .env automatically
     },
     // Explorer + Scout — browser interaction (Tier 2, fast model preferred)
     "explorer": {
       "provider": "google",
       "model": "gemini-2.0-flash",
-      "apiKey": "..."
+      "apiKey": "$GOOGLE_API_KEY"
     },
     "scout": {
       "provider": "google",
       "model": "gemini-2.0-flash",
-      "apiKey": "..."
+      "apiKey": "$GOOGLE_API_KEY"
     }
   },
   "agent": {
@@ -102,14 +122,20 @@ Edit `ai-debug.config.json` — at minimum set LLM API keys:
 }
 ```
 
-### 5. Environment Variables (optional)
+**Config precedence:** `request overrides` > `env vars (.env)` > `ai-debug.config.json` > `defaults`
+
+### 5. Environment Variables Reference
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `AI_DEBUG_API_KEY` | REST API auth (X-API-Key header) | None (no auth in dev) |
-| `PORT` | REST API port | `3100` |
-| `OPENAI_API_KEY` | Fallback API key for OpenAI models | — |
-| `GOOGLE_API_KEY` | Fallback API key for Google models | — |
+| `OPENAI_API_KEY` | OpenAI API key (used via `$OPENAI_API_KEY` in config) | — |
+| `GOOGLE_API_KEY` | Google AI API key | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key | — |
+| `AI_DEBUG_API_KEY` | REST API auth (`X-API-Key` header). Empty = no auth (dev mode) | — |
+| `PORT` | REST API server port | `3100` |
+| `BROWSER_HEADLESS` | Show browser window (`false` to watch) | `true` |
+| `LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` | `info` |
+| `LOGS_DIR` | Directory for investigation log files | `logs` |
 
 ---
 
@@ -300,7 +326,8 @@ ai-debug-agent/
 │   ├── schemas.ts        InvestigationRequestSchema
 │   ├── tool-names.ts     TOOL_NAME constants
 │   ├── tool-access.ts    TOOL_ACCESS registry per agent
-│   ├── bug-patterns.ts   10 bug patterns catalogue
+│   ├── skill-types.ts    Skill system types
+│   ├── bug-patterns.ts   10 bug patterns catalogue (fallback)
 │   └── types.ts          Barrel re-export
 ├── mcp-server/       MCP server + 20 tools
 │   ├── browser/          Playwright wrappers (actions, dom, collector)
@@ -308,15 +335,25 @@ ai-debug-agent/
 │   └── tools/            Tool handlers (navigate, click, fill, ...)
 ├── mcp-client/       LangGraph graph + services
 │   ├── graph/            Investigation graph (nodes, routing, state)
-│   ├── agent/            LLM client, prompts, bridge, pattern-matcher
+│   ├── agent/            LLM client, config, skill-loader, skill-registry
 │   ├── service/          InvestigationService facade
-│   └── reporter/         Report generator + registry
+│   ├── reporter/         Report generator + registry
+│   ├── observability/    EventBus, logger, investigation-logger
+│   └── skills/           21 skill files (.skill.md)
+│       ├── frameworks/     react, nextjs, vue
+│       ├── bug-patterns/   api-error, js-exception, ...
+│       ├── auth/           cookie-session, oauth
+│       ├── source-map/     webpack, vite
+│       ├── browser/        spa-navigation, shadow-dom
+│       └── report/         dev-report, github-issue
 ├── api/              Hono REST API
 │   ├── routes/           /investigate, /reports
 │   ├── middleware/       API key auth
 │   └── repositories/    Thread repository
 ├── tests/            vitest tests
-└── fixture-app/      Test fixture apps (placeholder)
+├── .env.example      Environment variables template
+├── ai-debug.config.example.json  Config file template
+└── logs/             Investigation log files (auto-created)
 ```
 
 ---
@@ -345,7 +382,53 @@ pnpm run format        # Prettier format
 pnpm run format:check  # Prettier check
 ```
 
-**Config precedence:** `request` > `env vars` > `ai-debug.config.json` > `defaults`
+**Config precedence:** `request` > `env vars (.env)` > `ai-debug.config.json` > `defaults`
+
+---
+
+## Agent Skill System
+
+The agent dynamically loads investigation skills based on detected context:
+
+```
+Page loaded → Scout detects React + API errors
+  → SkillRegistry resolves: [react, api-error, js-exception]
+  → Investigator receives context-specific playbooks in system prompt
+```
+
+**21 skills across 6 categories:**
+
+| Category | Skills |
+|----------|--------|
+| **Frameworks** | `react`, `nextjs`, `vue` |
+| **Bug Patterns** | `api-error`, `js-exception`, `silent-failure`, `race-condition`, `state-management`, `infinite-loading`, `navigation`, `form-input`, `file-upload`, `performance` |
+| **Auth** | `cookie-session`, `oauth` |
+| **Source Map** | `webpack`, `vite` |
+| **Browser** | `spa-navigation`, `shadow-dom` |
+| **Report** | `dev-report`, `github-issue` |
+
+Skill files: `mcp-client/skills/**/*.skill.md`
+
+---
+
+## Investigation Logs
+
+Every investigation is logged to a markdown file for post-mortem debugging:
+
+```
+logs/
+├── 20260304_161500-example.com_products.md
+├── 20260304_163000-my-app.vercel.app.md
+└── ...
+```
+
+Logs contain timestamped entries of every agent action:
+- 💭 Reasoning steps
+- 🔧 Tool calls with arguments
+- 🧪 Hypotheses with confidence scores
+- ✅/❌ Tool results with timing
+- 🗺️ Source map resolutions
+- ⚠️ Errors
 
 ---
 

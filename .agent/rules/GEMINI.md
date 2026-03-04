@@ -62,6 +62,7 @@ When user's prompt is NOT in English:
 - No over-engineering
 - **Self-Documentation:** Document changes in relevant `.md` files
 - **Testing Mandate:** Write and run tests (AAA pattern)
+- **No `eslint-disable` Band-Aids:** Fix root cause, not symptoms. Research the SDK/library types before suppressing. `eslint-disable` is only acceptable when the root cause is genuinely unfixable (e.g. Playwright `evaluate()` browser context types, OpenAI SDK runtime nullability)
 
 ### 📁 File Dependency Awareness
 
@@ -90,6 +91,24 @@ When user's prompt is NOT in English:
 ---
 
 ## TIER 1: CODE RULES (When Writing Code)
+
+### 📦 Import Rules
+
+**Use `#` subpath imports. NEVER use relative `../` paths.**
+
+```typescript
+// ❌ WRONG
+import { getPage } from '../browser/browser.js';
+import type { EventBus } from '../../observability/event-bus.js';
+
+// ✅ CORRECT
+import { getPage } from '#browser/browser.js';
+import type { EventBus } from '#observability/event-bus.js';
+```
+
+- Subpath mappings defined in each package's `package.json` `"imports"` field
+- TypeScript resolution via `tsconfig.json` `"paths"`
+- Same-directory `./` imports are fine
 
 ### 📱 Project Type Routing
 

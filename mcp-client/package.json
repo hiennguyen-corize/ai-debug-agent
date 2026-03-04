@@ -4,12 +4,36 @@
     "private": true,
     "type": "module",
     "main": "./dist/index.js",
+    "exports": {
+        ".": "./dist/index.js",
+        "./graph": "./dist/graph/index.js",
+        "./agent/llm-client": "./dist/agent/llm-client.js",
+        "./agent/config-loader": "./dist/agent/config-loader.js",
+        "./observability/event-bus": "./dist/observability/event-bus.js",
+        "./observability/step-aggregator": "./dist/observability/step-aggregator.js",
+        "./reporter/report": "./dist/reporter/report.js",
+        "./reporter/registry": "./dist/reporter/registry.js",
+        "./agent/mcp-bridge": "./dist/agent/mcp-bridge.js",
+        "./agent/bridge-factory": "./dist/agent/bridge-factory.js",
+        "./service/investigation-service": "./dist/service/investigation-service.js"
+    },
+    "imports": {
+        "#agent/*.js": "./dist/agent/*.js",
+        "#auth/*.js": "./dist/auth/*.js",
+        "#graph/*.js": "./dist/graph/*.js",
+        "#model/*.js": "./dist/model/*.js",
+        "#observability/*.js": "./dist/observability/*.js",
+        "#reporter/*.js": "./dist/reporter/*.js",
+        "#schemas/*.js": "./dist/schemas/*.js",
+        "#service/*.js": "./dist/service/*.js"
+    },
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",
         "dev": "node --watch dist/index.js"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.12.0",
         "openai": "^4.80.0",
         "@langchain/langgraph": "^0.2.0",
         "@langchain/core": "^0.3.0",
@@ -22,7 +46,8 @@
         "pino": "^9.0.0",
         "signal-exit": "^4.1.0",
         "zod": "^3.24.0",
-        "dotenv": "^16.4.0"
+        "dotenv": "^16.4.0",
+        "@ai-debug/shared": "workspace:*"
     },
     "optionalDependencies": {
         "ink": "^5.0.0",

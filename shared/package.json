@@ -13,6 +13,10 @@
         "./types.js": {
             "types": "./types.ts",
             "default": "./dist/types.js"
+        },
+        "./schemas.js": {
+            "types": "./schemas.ts",
+            "default": "./dist/schemas.js"
         }
     },
     "scripts": {

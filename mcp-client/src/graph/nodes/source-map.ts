@@ -1,1 +1,81 @@
-// TODO: implement
+/**
+ * Source map resolution node — resolve, read, trace.
+ */
+
+import {
+  INVESTIGATION_STATUS,
+
+  TOOL_NAME,
+  type CodeAnalysis,
+  type SourceMapResolution,
+} from '@ai-debug/shared';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import { FetchSourceMapResponseSchema, ResolveErrorLocationResponseSchema } from '#schemas/responses.js';
+
+type SourceMapDeps = {
+  eventBus: EventBus;
+  mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
+};
+
+const buildResolution = (
+  bundleUrl: string,
+  resolveResult: { originalFile?: string | undefined; originalLine?: number | undefined; originalColumn?: number | undefined; surroundingCode?: string | undefined },
+): { resolution: SourceMapResolution; codeSnippet: string } => ({
+  resolution: {
+    bundleUrl,
+    sourceMapUrl: bundleUrl + '.map',
+    originalFile: resolveResult.originalFile ?? '',
+    originalLine: resolveResult.originalLine ?? 0,
+    originalColumn: resolveResult.originalColumn ?? 0,
+    codeSnippet: resolveResult.surroundingCode ?? '',
+  },
+  codeSnippet: resolveResult.surroundingCode ?? '',
+});
+
+const resolveFirstError = async (
+  bundleUrls: string[],
+  deps: SourceMapDeps,
+): Promise<{ resolution: SourceMapResolution; codeSnippet: string } | null> => {
+  for (const bundleUrl of bundleUrls) {
+    const fetchResult = FetchSourceMapResponseSchema.parse(
+      await deps.mcpCall(TOOL_NAME.FETCH_SOURCE_MAP, { bundleUrl }),
+    );
+    if (!fetchResult.success) continue;
+
+    const resolveResult = ResolveErrorLocationResponseSchema.parse(
+      await deps.mcpCall(TOOL_NAME.RESOLVE_ERROR_LOCATION, { bundleUrl, line: 1, column: 0 }),
+    );
+    if (resolveResult.originalFile === undefined) continue;
+
+    deps.eventBus.emit({
+      type: 'sourcemap_resolved',
+      bundleUrl,
+      originalFile: resolveResult.originalFile,
+      line: resolveResult.originalLine ?? 0,
+    });
+
+    return buildResolution(bundleUrl, resolveResult);
+  }
+  return null;
+};
+
+export const createSourceMapNode = (deps: SourceMapDeps) =>
+  async (state: AgentState): Promise<Partial<AgentState>> => {
+    const bundleUrls = state.initialObservations?.bundleUrls ?? [];
+    if (bundleUrls.length === 0) return { status: INVESTIGATION_STATUS.INVESTIGATING };
+
+    const result = await resolveFirstError(bundleUrls, deps);
+    if (result === null) {
+      deps.eventBus.emit({ type: 'sourcemap_failed', bundleUrl: bundleUrls[0] ?? '', reason: 'No source maps found' });
+      return { status: INVESTIGATION_STATUS.INVESTIGATING };
+    }
+
+    const analysis: CodeAnalysis = {
+      errorLocation: result.resolution,
+      dataFlow: { uiComponent: '', apiCall: '', stateUpdate: '', rootCause: '' },
+      suggestedFix: null,
+    };
+
+    return { codeAnalysis: analysis, status: INVESTIGATION_STATUS.INVESTIGATING };
+  };

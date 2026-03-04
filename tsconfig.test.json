@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["vitest/globals"]
+  },
+  "include": ["tests/**/*.ts", "vitest.config.ts"],
+  "references": [
+    { "path": "shared" },
+    { "path": "mcp-client" }
+  ]
+}

@@ -49,6 +49,7 @@ export default tseslint.config(
         { selector: 'typeAlias', format: ['PascalCase'] },
         { selector: 'enum', format: ['PascalCase'] },
       ],
+      '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
 
       // ─── Code quality ──────────────────────────────────
       'no-console': 'warn',

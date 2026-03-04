@@ -18,7 +18,7 @@ export const registerGetConsoleLogsTool = (server: McpServer): void => {
         errorsOnly: z.boolean().optional().describe(TOOL_GET_CONSOLE_LOGS.PARAMS.ERRORS_ONLY),
       },
     },
-    async ({ sessionId, errorsOnly }) => {
+    ({ sessionId, errorsOnly }) => {
       try {
         const collector = getCollector(sessionId);
         const logs = (errorsOnly ?? false) ? collector.getConsoleErrors() : collector.getConsoleLogs();

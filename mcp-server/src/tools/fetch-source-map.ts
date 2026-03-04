@@ -22,8 +22,8 @@ export const registerFetchSourceMapTool = (server: McpServer): void => {
       try {
         const config = localMapPath !== undefined ? { localPath: localMapPath } : undefined;
         const result = await fetchSourceMap(bundleUrl, config);
-        const { rawMap: _raw, ...summary } = result;
-        return toolSuccess(summary);
+        const { success, origin, mapUrl, sourcesCount } = result;
+        return toolSuccess({ success, origin, mapUrl, sourcesCount });
       } catch (err) {
         return toolError(err);
       }

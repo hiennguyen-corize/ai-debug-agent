@@ -74,7 +74,7 @@ const aggregateError = (event: Extract<AgentEvent, { type: 'error' }>): Investig
 });
 
 const extractAgent = (event: AgentEvent): InvestigationStep['agent'] => {
-  if ('agent' in event) return (event as Extract<AgentEvent, { agent: unknown }>).agent;
+  if ('agent' in event && typeof event.agent === 'string') return event.agent;
   return AGENT_NAME.INVESTIGATOR;
 };
 
@@ -94,7 +94,13 @@ export const aggregateEvent = (event: AgentEvent): InvestigationStep => {
     case 'hypothesis_created': return aggregateHypothesis(event);
     case 'investigation_phase': return aggregatePhase(event);
     case 'error': return aggregateError(event);
-    default: return aggregateFallback(event);
+    case 'llm_usage':
+    case 'hypothesis_updated':
+    case 'sourcemap_resolved':
+    case 'sourcemap_failed':
+    case 'user_question':
+    case 'user_answered':
+      return aggregateFallback(event);
   }
 };
 

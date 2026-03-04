@@ -7,7 +7,7 @@ import type { AgentState } from '#graph/state.js';
 
 const DEFAULT_HINT = 'general bug investigation — scan for any errors or anomalies';
 
-export const preflightNode = async (state: AgentState): Promise<Partial<AgentState>> => {
+export const preflightNode = (state: AgentState): Partial<AgentState> => {
   if (state.hint !== null && state.hint.trim() !== '') {
     return { status: INVESTIGATION_STATUS.SCOUTING };
   }

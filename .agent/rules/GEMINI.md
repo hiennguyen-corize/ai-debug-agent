@@ -62,6 +62,7 @@ When user's prompt is NOT in English:
 - No over-engineering
 - **Self-Documentation:** Document changes in relevant `.md` files
 - **Testing Mandate:** Write and run tests (AAA pattern)
+- **No `eslint-disable` Band-Aids:** Fix root cause, not symptoms. Research the SDK/library types before suppressing. `eslint-disable` is only acceptable when the root cause is genuinely unfixable (e.g. Playwright `evaluate()` browser context types, OpenAI SDK runtime nullability)
 
 ### 📁 File Dependency Awareness
 

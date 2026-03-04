@@ -3,7 +3,7 @@
  */
 
 import { StateGraph, END } from '@langchain/langgraph';
-import { AgentStateAnnotation, type AgentState } from './state.js';
+import { AgentStateAnnotation } from './state.js';
 import {
   routeFromPreflight,
   routeFromInvestigator,
@@ -25,6 +25,7 @@ type GraphDeps = {
   promptUser: (question: string) => Promise<string>;
 };
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type, @typescript-eslint/explicit-module-boundary-types
 export const createInvestigationGraph = async (deps: GraphDeps) => {
   const { createScoutNode } = await import('./nodes/scout.js');
   const { createInvestigatorNode } = await import('./nodes/investigator.js');

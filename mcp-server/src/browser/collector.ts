@@ -17,7 +17,7 @@ const buildCapturedRequest = (request: Request, actionId: string): CapturedReque
   requestStart: Date.now(),
   responseEnd: 0,
   durationMs: 0,
-  initiator: request.frame()?.url() ?? 'unknown',
+  initiator: request.frame().url(),
 });
 
 const updateRequestWithResponse = (log: CapturedRequest, response: Response): void => {
@@ -30,7 +30,7 @@ const updateRequestWithResponse = (log: CapturedRequest, response: Response): vo
 const findPendingRequest = (logs: CapturedRequest[], url: string): CapturedRequest | undefined => {
   for (let i = logs.length - 1; i >= 0; i--) {
     const log = logs[i];
-    if (log !== undefined && log.url === url && log.status === 0) return log;
+    if (log?.url === url && log.status === 0) return log;
   }
   return undefined;
 };

@@ -2,10 +2,12 @@
  * Source map consumer wrapper — typed, no assertions.
  */
 
-import { SourceMapConsumer, type RawSourceMap } from 'source-map';
+import { SourceMapConsumer, type BasicSourceMapConsumer, type IndexedSourceMapConsumer, type RawSourceMap } from 'source-map';
 
-export const createConsumer = async (rawMap: unknown): Promise<SourceMapConsumer> =>
+type ConcreteConsumer = BasicSourceMapConsumer | IndexedSourceMapConsumer;
+
+export const createConsumer = async (rawMap: unknown): Promise<ConcreteConsumer> =>
   new SourceMapConsumer(rawMap as RawSourceMap);
 
-export const getConsumerSources = (consumer: SourceMapConsumer): string[] =>
-  (consumer as unknown as { sources: string[] }).sources ?? [];
+export const getConsumerSources = (consumer: ConcreteConsumer): string[] =>
+  consumer.sources;

@@ -25,6 +25,7 @@ export const parseToolCalls = (
   message: OpenAI.Chat.ChatCompletionMessage,
 ): ParsedToolCall[] => {
   const calls = message.tool_calls;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- OpenAI SDK types
   if (calls === undefined || calls === null) return [];
   return calls.map((call) => ({
     id: call.id,
@@ -34,6 +35,7 @@ export const parseToolCalls = (
 };
 
 export const hasToolCalls = (message: OpenAI.Chat.ChatCompletionMessage): boolean =>
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- OpenAI SDK types
   message.tool_calls !== undefined && message.tool_calls !== null && message.tool_calls.length > 0;
 
 export const getTextContent = (message: OpenAI.Chat.ChatCompletionMessage): string =>

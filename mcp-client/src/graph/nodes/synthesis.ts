@@ -38,6 +38,7 @@ const invokeLLM = async (context: string, deps: SynthesisDeps): Promise<string> 
     ] as Parameters<typeof deps.llmClient.client.chat.completions.create>[0]['messages'],
     temperature: 0.1,
   });
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return response.choices[0]?.message?.content ?? '';
 };
 

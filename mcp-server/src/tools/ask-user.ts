@@ -18,7 +18,7 @@ export const registerAskUserTool = (server: McpServer): void => {
         attempts: z.number().describe(TOOL_ASK_USER.PARAMS.ATTEMPTS),
       },
     },
-    async ({ question, context, attempts }) =>
+    ({ question, context, attempts }) =>
       toolSuccess({
         status: 'question_emitted',
         question,

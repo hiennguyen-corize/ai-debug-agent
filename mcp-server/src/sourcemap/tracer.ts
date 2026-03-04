@@ -2,9 +2,11 @@
  * Import chain tracer — trace callers up the import chain.
  */
 
-import type { SourceMapConsumer } from 'source-map';
+import type { BasicSourceMapConsumer, IndexedSourceMapConsumer } from 'source-map';
 import type { ImportChainLink } from '#types/index.js';
 import { createConsumer, getConsumerSources } from './consumer.js';
+
+type ConcreteConsumer = BasicSourceMapConsumer | IndexedSourceMapConsumer;
 
 const FILE_ROLE_PATTERN = {
   COMPONENT: /component|page|view|screen/i,
@@ -26,7 +28,7 @@ const inferFileRole = (filePath: string): string => {
   return 'unknown';
 };
 
-const extractSnippet = (consumer: SourceMapConsumer, file: string, line: number): string => {
+const extractSnippet = (consumer: ConcreteConsumer, file: string, line: number): string => {
   const content = consumer.sourceContentFor(file);
   if (content === null) return '';
   const lines = content.split('\n');
@@ -47,7 +49,7 @@ const findImportLine = (lines: string[], targetBasename: string): number => {
 
 const findCallers = (
   targetFile: string,
-  consumer: SourceMapConsumer,
+  consumer: ConcreteConsumer,
   allSources: string[],
 ): { file: string; line: number }[] => {
   const targetBasename = targetFile.replace(/.*\//, '').replace(/\.\w+$/, '');
@@ -56,7 +58,7 @@ const findCallers = (
   for (const source of allSources) {
     if (source === targetFile) continue;
     const content = consumer.sourceContentFor(source);
-    if (content === null || !content.includes(targetBasename)) continue;
+    if (content?.includes(targetBasename) !== true) continue;
 
     const importLine = findImportLine(content.split('\n'), targetBasename);
     if (importLine > 0) callers.push({ file: source, line: importLine });
@@ -66,7 +68,7 @@ const findCallers = (
 
 const traceOneLevel = (
   currentFile: string,
-  consumer: SourceMapConsumer,
+  consumer: ConcreteConsumer,
   allSources: string[],
 ): ImportChainLink | null => {
   const callers = findCallers(currentFile, consumer, allSources);
@@ -82,7 +84,7 @@ const traceOneLevel = (
 
 const buildChain = (
   errorFile: string,
-  consumer: SourceMapConsumer,
+  consumer: ConcreteConsumer,
   allSources: string[],
 ): ImportChainLink[] => {
   const chain: ImportChainLink[] = [];

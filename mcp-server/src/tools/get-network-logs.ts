@@ -18,7 +18,7 @@ export const registerGetNetworkLogsTool = (server: McpServer): void => {
         errorsOnly: z.boolean().optional().describe(TOOL_GET_NETWORK_LOGS.PARAMS.ERRORS_ONLY),
       },
     },
-    async ({ sessionId, errorsOnly }) => {
+    ({ sessionId, errorsOnly }) => {
       try {
         const collector = getCollector(sessionId);
         const logs = (errorsOnly ?? false) ? collector.getNetworkErrors() : collector.getNetworkLogs();

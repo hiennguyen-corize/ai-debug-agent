@@ -18,8 +18,8 @@ type InvestigatorDeps = {
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const buildMessages = (state: AgentState): Array<{ role: string; content: string }> => {
-  const msgs: Array<{ role: string; content: string }> = [
+const buildMessages = (state: AgentState): { role: string; content: string }[] => {
+  const msgs: { role: string; content: string }[] = [
     { role: 'system', content: INVESTIGATOR_SYSTEM_PROMPT },
   ];
   if (state.initialObservations !== null) msgs.push({ role: 'user', content: `Scout:\n${JSON.stringify(state.initialObservations, null, 2)}` });
@@ -54,6 +54,7 @@ const invokeInvestigator = async (state: AgentState, deps: InvestigatorDeps): Pr
 
   const reasoning = getTextContent(message);
   if (reasoning !== '') deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.INVESTIGATOR, text: reasoning });
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- OpenAI SDK types
   if (response.usage !== undefined && response.usage !== null) emitUsage(deps, response.usage);
 
   return { iterationCount: state.iterationCount + 1 };

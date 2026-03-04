@@ -1,6 +1,9 @@
 /**
  * Selector stability scoring.
+ * Contains Playwright evaluate callbacks — eslint can't resolve DOM types.
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 
 import type { Page, ElementHandle } from 'playwright';
 import type { SelectorCandidate } from '#types/index.js';

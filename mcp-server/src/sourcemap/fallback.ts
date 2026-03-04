@@ -9,7 +9,7 @@ const SIMPLE_LOCATION_PATTERN = /(https?:\/\/[^:]+\.js):(\d+):(\d+)/;
 
 export const parseErrorLocation = (errorString: string): ParsedErrorLocation | null => {
   const match = ERROR_LOCATION_PATTERN.exec(errorString) ?? SIMPLE_LOCATION_PATTERN.exec(errorString);
-  if (match === null || match[1] === undefined || match[2] === undefined || match[3] === undefined) {
+  if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) {
     return null;
   }
   return {
@@ -25,7 +25,7 @@ export const extractSourceMappingUrl = async (bundleUrl: string): Promise<string
     if (!response.ok) return null;
     const text = await response.text();
     const match = /\/\/[@#]\s*sourceMappingURL=(.+?)(?:\s|$)/.exec(text);
-    if (match === null || match[1] === undefined) return null;
+    if (match?.[1] === undefined) return null;
 
     const mapRef = match[1];
     if (mapRef.startsWith('http')) return mapRef;

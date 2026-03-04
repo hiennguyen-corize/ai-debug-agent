@@ -3,7 +3,7 @@
  */
 
 import { loadConfig } from './agent/config-loader.js';
-import { createLLMClient } from './agent/llm-client.js';
+import { createLLMClient, type LLMClient } from './agent/llm-client.js';
 import { createEventBus } from './observability/event-bus.js';
 import { createLogger } from './observability/logger.js';
 import { createInvestigationGraph } from './graph/index.js';
@@ -18,12 +18,21 @@ const createPromptUser = (): ((question: string) => Promise<string>) => {
 };
 
 const createMcpCall = (): ((tool: string, args: Record<string, unknown>) => Promise<unknown>) =>
+  // eslint-disable-next-line @typescript-eslint/require-await
   async (tool: string, args: Record<string, unknown>): Promise<unknown> => {
+    // eslint-disable-next-line no-console
     console.log(`[MCP] ${tool}(${JSON.stringify(args).slice(0, 100)})`);
     return {};
   };
 
-const buildLLMClients = (config: Awaited<ReturnType<typeof loadConfig>>) => ({
+type LLMClients = {
+  investigatorLLM: LLMClient;
+  explorerLLM: LLMClient;
+  scoutLLM: LLMClient;
+  synthesisLLM: LLMClient;
+};
+
+const buildLLMClients = (config: Awaited<ReturnType<typeof loadConfig>>): LLMClients => ({
   investigatorLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
   explorerLLM: createLLMClient(AGENT_NAME.EXPLORER, config),
   scoutLLM: createLLMClient(AGENT_NAME.SCOUT, config),
@@ -39,8 +48,10 @@ const handleReport = async (
   if (!duplicate) {
     const reportPath = await saveReport(report, config.output.reportsDir);
     await addToRegistry(report, reportPath, config.output.reportsDir);
+    // eslint-disable-next-line no-console
     console.log(`\n✅ Report saved: ${reportPath}`);
   } else {
+    // eslint-disable-next-line no-console
     console.log('\n⚠️ Duplicate report — skipped');
   }
 };

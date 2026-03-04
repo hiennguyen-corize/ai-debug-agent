@@ -22,37 +22,42 @@ type ScoutDeps = {
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const collectObservations = async (
-  url: string,
-  hint: string | null,
-  deps: ScoutDeps,
-): Promise<{ observations: ScoutObservation; sessionId: string; evidence: Evidence[] }> => {
-  deps.eventBus.emit({ type: 'investigation_phase', phase: 'scouting' });
+const DOM_SNAPSHOT_MAX_LENGTH = 2000;
 
+const collectRawData = async (url: string, deps: ScoutDeps): Promise<{
+  sessionId: string;
+  consoleLogs: { logs: { type: string; text: string }[] };
+  networkLogs: { logs: { url: string; method: string; status: number }[] };
+  dom: { title: string; elements: unknown[] };
+}> => {
   const navResult = NavigateResponseSchema.parse(await deps.mcpCall(TOOL_NAME.BROWSER_NAVIGATE, { url }));
   const sessionId = navResult.sessionId ?? crypto.randomUUID();
-
   const consoleLogs = ConsoleLogsResponseSchema.parse(await deps.mcpCall(TOOL_NAME.GET_CONSOLE_LOGS, { sessionId }));
   const networkLogs = NetworkLogsResponseSchema.parse(await deps.mcpCall(TOOL_NAME.GET_NETWORK_LOGS, { sessionId }));
   const dom = DomResponseSchema.parse(await deps.mcpCall(TOOL_NAME.BROWSER_GET_DOM, { sessionId }));
+  return { sessionId, consoleLogs, networkLogs, dom };
+};
 
-  const consoleErrors = consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text);
-  const networkErrors = networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
+const buildObservations = (
+  url: string,
+  consoleLogs: { logs: { type: string; text: string }[] },
+  networkLogs: { logs: { url: string; method: string; status: number }[] },
+  dom: { title: string; elements: unknown[] },
+): ScoutObservation => ({
+  url,
+  pageTitle: dom.title,
+  consoleErrors: consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text),
+  networkErrors: networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
     url: l.url, method: l.method, status: l.status, statusText: '',
-  }));
+  })),
+  suspiciousPatterns: [],
+  domSnapshot: JSON.stringify(dom.elements).slice(0, DOM_SNAPSHOT_MAX_LENGTH),
+  bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
+  timestamp: new Date().toISOString(),
+});
 
-  const observations: ScoutObservation = {
-    url,
-    pageTitle: dom.title,
-    consoleErrors,
-    networkErrors,
-    suspiciousPatterns: [],
-    domSnapshot: JSON.stringify(dom.elements).slice(0, 2000),
-    bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
-    timestamp: new Date().toISOString(),
-  };
-
-  const evidence: Evidence[] = consoleErrors.map((err, i) => ({
+const buildInitialEvidence = (consoleErrors: string[]): Evidence[] =>
+  consoleErrors.map((err, i) => ({
     id: `scout-console-${i.toString()}`,
     hypothesisId: '',
     category: EVIDENCE_CATEGORY.CONSOLE,
@@ -62,8 +67,16 @@ const collectObservations = async (
     timestamp: Date.now(),
   }));
 
-  deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.SCOUT, text: `Collected ${consoleErrors.length} console errors, ${networkErrors.length} network errors` });
-
+const collectObservations = async (
+  url: string,
+  hint: string | null,
+  deps: ScoutDeps,
+): Promise<{ observations: ScoutObservation; sessionId: string; evidence: Evidence[] }> => {
+  deps.eventBus.emit({ type: 'investigation_phase', phase: 'scouting' });
+  const { sessionId, consoleLogs, networkLogs, dom } = await collectRawData(url, deps);
+  const observations = buildObservations(url, consoleLogs, networkLogs, dom);
+  const evidence = buildInitialEvidence(observations.consoleErrors);
+  deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.SCOUT, text: `Collected ${observations.consoleErrors.length.toString()} console errors, ${observations.networkErrors.length.toString()} network errors` });
   return { observations, sessionId, evidence };
 };
 

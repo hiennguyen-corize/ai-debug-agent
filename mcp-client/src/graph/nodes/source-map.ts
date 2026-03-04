@@ -4,7 +4,7 @@
 
 import {
   INVESTIGATION_STATUS,
-  AGENT_NAME,
+
   TOOL_NAME,
   type CodeAnalysis,
   type SourceMapResolution,
@@ -17,6 +17,21 @@ type SourceMapDeps = {
   eventBus: EventBus;
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
 };
+
+const buildResolution = (
+  bundleUrl: string,
+  resolveResult: { originalFile?: string | undefined; originalLine?: number | undefined; originalColumn?: number | undefined; surroundingCode?: string | undefined },
+): { resolution: SourceMapResolution; codeSnippet: string } => ({
+  resolution: {
+    bundleUrl,
+    sourceMapUrl: bundleUrl + '.map',
+    originalFile: resolveResult.originalFile ?? '',
+    originalLine: resolveResult.originalLine ?? 0,
+    originalColumn: resolveResult.originalColumn ?? 0,
+    codeSnippet: resolveResult.surroundingCode ?? '',
+  },
+  codeSnippet: resolveResult.surroundingCode ?? '',
+});
 
 const resolveFirstError = async (
   bundleUrls: string[],
@@ -31,7 +46,6 @@ const resolveFirstError = async (
     const resolveResult = ResolveErrorLocationResponseSchema.parse(
       await deps.mcpCall(TOOL_NAME.RESOLVE_ERROR_LOCATION, { bundleUrl, line: 1, column: 0 }),
     );
-
     if (resolveResult.originalFile === undefined) continue;
 
     deps.eventBus.emit({
@@ -41,17 +55,7 @@ const resolveFirstError = async (
       line: resolveResult.originalLine ?? 0,
     });
 
-    return {
-      resolution: {
-        bundleUrl,
-        sourceMapUrl: bundleUrl + '.map',
-        originalFile: resolveResult.originalFile,
-        originalLine: resolveResult.originalLine ?? 0,
-        originalColumn: resolveResult.originalColumn ?? 0,
-        codeSnippet: resolveResult.surroundingCode ?? '',
-      },
-      codeSnippet: resolveResult.surroundingCode ?? '',
-    };
+    return buildResolution(bundleUrl, resolveResult);
   }
   return null;
 };

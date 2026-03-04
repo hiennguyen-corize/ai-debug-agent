@@ -31,6 +31,6 @@ export const registerDispatchBrowserTaskTool = (server: McpServer): void => {
         timeoutMs: z.number().describe(TOOL_DISPATCH_BROWSER_TASK.PARAMS.TIMEOUT_MS),
       },
     },
-    async (input) => buildTaskResponse(input),
+    (input) => buildTaskResponse(input),
   );
 };

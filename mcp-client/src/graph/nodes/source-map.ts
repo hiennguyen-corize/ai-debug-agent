@@ -5,6 +5,7 @@
 import {
   INVESTIGATION_STATUS,
   AGENT_NAME,
+  TOOL_NAME,
   type CodeAnalysis,
   type SourceMapResolution,
 } from '@ai-debug/shared';
@@ -22,11 +23,13 @@ const resolveFirstError = async (
   deps: SourceMapDeps,
 ): Promise<{ resolution: SourceMapResolution; codeSnippet: string } | null> => {
   for (const bundleUrl of bundleUrls) {
-    const fetchResult = FetchSourceMapResponseSchema.parse(await deps.mcpCall('fetch_source_map', { bundleUrl }));
+    const fetchResult = FetchSourceMapResponseSchema.parse(
+      await deps.mcpCall(TOOL_NAME.FETCH_SOURCE_MAP, { bundleUrl }),
+    );
     if (!fetchResult.success) continue;
 
     const resolveResult = ResolveErrorLocationResponseSchema.parse(
-      await deps.mcpCall('resolve_error_location', { bundleUrl, line: 1, column: 0 }),
+      await deps.mcpCall(TOOL_NAME.RESOLVE_ERROR_LOCATION, { bundleUrl, line: 1, column: 0 }),
     );
 
     if (resolveResult.originalFile === undefined) continue;

@@ -2,11 +2,13 @@
  * Scout node — navigate, observe, collect baseline data.
  */
 
-import { INVESTIGATION_STATUS, AGENT_NAME, type ScoutObservation, type Evidence, EVIDENCE_TYPE, EVIDENCE_CATEGORY } from '@ai-debug/shared';
+import {
+  INVESTIGATION_STATUS, AGENT_NAME, TOOL_NAME,
+  type ScoutObservation, type Evidence, EVIDENCE_TYPE, EVIDENCE_CATEGORY,
+} from '@ai-debug/shared';
 import type { AgentState } from '../state.js';
 import type { EventBus } from '../../observability/event-bus.js';
 import type { LLMClient } from '../../agent/llm-client.js';
-import { SCOUT_SYSTEM_PROMPT } from '../../agent/prompts.js';
 import {
   NavigateResponseSchema,
   ConsoleLogsResponseSchema,
@@ -27,12 +29,12 @@ const collectObservations = async (
 ): Promise<{ observations: ScoutObservation; sessionId: string; evidence: Evidence[] }> => {
   deps.eventBus.emit({ type: 'investigation_phase', phase: 'scouting' });
 
-  const navResult = NavigateResponseSchema.parse(await deps.mcpCall('browser_navigate', { url }));
+  const navResult = NavigateResponseSchema.parse(await deps.mcpCall(TOOL_NAME.BROWSER_NAVIGATE, { url }));
   const sessionId = navResult.sessionId ?? crypto.randomUUID();
 
-  const consoleLogs = ConsoleLogsResponseSchema.parse(await deps.mcpCall('get_console_logs', { sessionId }));
-  const networkLogs = NetworkLogsResponseSchema.parse(await deps.mcpCall('get_network_logs', { sessionId }));
-  const dom = DomResponseSchema.parse(await deps.mcpCall('browser_get_dom', { sessionId }));
+  const consoleLogs = ConsoleLogsResponseSchema.parse(await deps.mcpCall(TOOL_NAME.GET_CONSOLE_LOGS, { sessionId }));
+  const networkLogs = NetworkLogsResponseSchema.parse(await deps.mcpCall(TOOL_NAME.GET_NETWORK_LOGS, { sessionId }));
+  const dom = DomResponseSchema.parse(await deps.mcpCall(TOOL_NAME.BROWSER_GET_DOM, { sessionId }));
 
   const consoleErrors = consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text);
   const networkErrors = networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({

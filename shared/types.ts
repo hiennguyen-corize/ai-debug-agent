@@ -85,3 +85,11 @@ export type {
   ReportSeverity,
   InvestigationReport,
 } from './domain.js';
+
+export {
+  TOOL_NAME,
+} from './tool-names.js';
+
+export type {
+  ToolName,
+} from './tool-names.js';

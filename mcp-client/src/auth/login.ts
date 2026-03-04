@@ -2,6 +2,8 @@
  * Auth login — form-based login strategy.
  */
 
+import { TOOL_NAME } from '@ai-debug/shared';
+
 type LoginConfig = {
   loginUrl: string;
   credentials: { email: string; password: string };
@@ -11,29 +13,37 @@ type LoginConfig = {
 
 type McpCall = (tool: string, args: Record<string, unknown>) => Promise<unknown>;
 
+const LOGIN_SELECTORS = {
+  EMAIL: 'input[type="email"], input[name="email"], #email',
+  PASSWORD: 'input[type="password"], input[name="password"], #password',
+  SUBMIT: 'button[type="submit"], input[type="submit"]',
+} as const;
+
+const WAIT_CONDITION = 'networkidle';
+
 const fillCredentials = async (config: LoginConfig, mcpCall: McpCall): Promise<void> => {
-  await mcpCall('browser_fill', {
-    sessionId: '', selector: 'input[type="email"], input[name="email"], #email',
+  await mcpCall(TOOL_NAME.BROWSER_FILL, {
+    sessionId: '', selector: LOGIN_SELECTORS.EMAIL,
     value: config.credentials.email,
   });
-  await mcpCall('browser_fill', {
-    sessionId: '', selector: 'input[type="password"], input[name="password"], #password',
+  await mcpCall(TOOL_NAME.BROWSER_FILL, {
+    sessionId: '', selector: LOGIN_SELECTORS.PASSWORD,
     value: config.credentials.password,
   });
 };
 
 const submitAndWait = async (config: LoginConfig, mcpCall: McpCall): Promise<void> => {
-  await mcpCall('browser_click', {
-    sessionId: '', selector: 'button[type="submit"], input[type="submit"]',
+  await mcpCall(TOOL_NAME.BROWSER_CLICK, {
+    sessionId: '', selector: LOGIN_SELECTORS.SUBMIT,
   });
-  await mcpCall('browser_wait', {
-    sessionId: '', condition: 'networkidle', timeoutMs: config.timeoutMs,
+  await mcpCall(TOOL_NAME.BROWSER_WAIT, {
+    sessionId: '', condition: WAIT_CONDITION, timeoutMs: config.timeoutMs,
   });
 };
 
 export const formLogin = async (config: LoginConfig, mcpCall: McpCall): Promise<boolean> => {
   try {
-    await mcpCall('browser_navigate', { url: config.loginUrl });
+    await mcpCall(TOOL_NAME.BROWSER_NAVIGATE, { url: config.loginUrl });
     await fillCredentials(config, mcpCall);
     await submitAndWait(config, mcpCall);
     return true;

@@ -5,6 +5,7 @@
 import {
   INVESTIGATION_STATUS,
   AGENT_NAME,
+  TOOL_NAME,
   type BrowserTaskResult,
   type Evidence,
   EVIDENCE_TYPE,
@@ -13,7 +14,6 @@ import {
 import type { AgentState } from '../state.js';
 import type { EventBus } from '../../observability/event-bus.js';
 import type { LLMClient } from '../../agent/llm-client.js';
-import { EXPLORER_SYSTEM_PROMPT } from '../../agent/prompts.js';
 import { DispatchTaskResponseSchema } from '../../schemas/responses.js';
 
 type ExplorerDeps = {
@@ -47,14 +47,14 @@ const taskResultToEvidence = (result: BrowserTaskResult, hypothesisId: string): 
 const dispatchTask = async (state: AgentState, deps: ExplorerDeps): Promise<BrowserTaskResult> => {
   const task = state.pendingBrowserTask;
   if (task === null) throw new Error('No pending task');
-  deps.eventBus.emit({ type: 'tool_call', agent: AGENT_NAME.EXPLORER, tool: 'browser_task', args: task });
+  deps.eventBus.emit({ type: 'tool_call', agent: AGENT_NAME.EXPLORER, tool: TOOL_NAME.DISPATCH_BROWSER_TASK, args: task });
   const result = buildTaskResult(
-    await deps.mcpCall('dispatch_browser_task', {
+    await deps.mcpCall(TOOL_NAME.DISPATCH_BROWSER_TASK, {
       task: task.task, stopCondition: task.stopCondition,
       collectEvidence: task.lookFor, hypothesisId: '', timeoutMs: 90_000,
     }),
   );
-  deps.eventBus.emit({ type: 'tool_result', agent: AGENT_NAME.EXPLORER, tool: 'browser_task', success: result.error === undefined, durationMs: 0 });
+  deps.eventBus.emit({ type: 'tool_result', agent: AGENT_NAME.EXPLORER, tool: TOOL_NAME.DISPATCH_BROWSER_TASK, success: result.error === undefined, durationMs: 0 });
   return result;
 };
 

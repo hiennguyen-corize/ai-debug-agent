@@ -6,7 +6,8 @@
     "main": "./dist/server.js",
     "imports": {
         "#routes/*.js": "./dist/routes/*.js",
-        "#repositories/*.js": "./dist/repositories/*.js"
+        "#repositories/*.js": "./dist/repositories/*.js",
+        "#middleware/*.js": "./dist/middleware/*.js"
     },
     "scripts": {
         "build": "tsc",

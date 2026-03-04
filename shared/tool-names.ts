@@ -21,6 +21,7 @@ export const TOOL_NAME = {
   READ_SOURCE_FILE: 'read_source_file',
   DISPATCH_BROWSER_TASK: 'dispatch_browser_task',
   ASK_USER: 'ask_user',
+  FINISH_INVESTIGATION: 'finish_investigation',
 } as const;
 
 export type ToolName = (typeof TOOL_NAME)[keyof typeof TOOL_NAME];

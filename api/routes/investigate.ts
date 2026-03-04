@@ -18,7 +18,11 @@ const threads = createInMemoryThreadRepository();
 
 export const investigateRoute = new Hono();
 
-const startInvestigation = (thread: InvestigationThread, config?: Record<string, unknown>): void => {
+const startInvestigation = (
+  thread: InvestigationThread,
+  config?: Record<string, unknown>,
+  callbackUrl?: string,
+): void => {
   void (async () => {
     try {
       const { createDefaultBridge } = await import('@ai-debug/mcp-client/agent/bridge-factory');
@@ -32,6 +36,7 @@ const startInvestigation = (thread: InvestigationThread, config?: Record<string,
           {
             mcpCall: bridge.call,
             onEvent: (event) => { for (const sub of thread.subscribers) sub(event); },
+            callbackUrl,
             configOverrides: config,
           },
         );
@@ -58,7 +63,7 @@ investigateRoute.post('/', async (c) => {
     mode: body.data.mode,
   });
 
-  startInvestigation(thread, body.data.config);
+  startInvestigation(thread, body.data.config, body.data.callbackUrl);
   return c.json({ threadId: thread.id, status: 'started' }, 201);
 });
 

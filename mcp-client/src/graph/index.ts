@@ -14,6 +14,9 @@ import {
 import { preflightNode } from './nodes/preflight.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
+import { assertToolAccess, type AgentName } from '@ai-debug/shared';
+
+type McpCall = (tool: string, args: Record<string, unknown>) => Promise<unknown>;
 
 type GraphDeps = {
   investigatorLLM: LLMClient;
@@ -21,9 +24,15 @@ type GraphDeps = {
   scoutLLM: LLMClient;
   synthesisLLM: LLMClient;
   eventBus: EventBus;
-  mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
+  mcpCall: McpCall;
   promptUser: (question: string) => Promise<string>;
 };
+
+const scopedMcpCall = (agent: AgentName, mcpCall: McpCall): McpCall =>
+  (tool, args) => {
+    assertToolAccess(agent, tool);
+    return mcpCall(tool, args);
+  };
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type, @typescript-eslint/explicit-module-boundary-types
 export const createInvestigationGraph = async (deps: GraphDeps) => {
@@ -36,10 +45,10 @@ export const createInvestigationGraph = async (deps: GraphDeps) => {
 
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode('preflight', preflightNode)
-    .addNode('scout', createScoutNode({ llmClient: deps.scoutLLM, eventBus: deps.eventBus, mcpCall: deps.mcpCall }))
-    .addNode('investigator', createInvestigatorNode({ llmClient: deps.investigatorLLM, eventBus: deps.eventBus, mcpCall: deps.mcpCall }))
-    .addNode('explorer', createExplorerNode({ llmClient: deps.explorerLLM, eventBus: deps.eventBus, mcpCall: deps.mcpCall }))
-    .addNode('source_map', createSourceMapNode({ eventBus: deps.eventBus, mcpCall: deps.mcpCall }))
+    .addNode('scout', createScoutNode({ llmClient: deps.scoutLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('scout', deps.mcpCall) }))
+    .addNode('investigator', createInvestigatorNode({ llmClient: deps.investigatorLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('investigator', deps.mcpCall) }))
+    .addNode('explorer', createExplorerNode({ llmClient: deps.explorerLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('explorer', deps.mcpCall) }))
+    .addNode('source_map', createSourceMapNode({ eventBus: deps.eventBus, mcpCall: scopedMcpCall('investigator', deps.mcpCall) }))
     .addNode('ask_user', createAskUserNode({ promptUser: deps.promptUser }))
     .addNode('synthesis', createSynthesisNode({ llmClient: deps.synthesisLLM, eventBus: deps.eventBus, startTime: Date.now() }))
     .addNode('force_synthesis', createSynthesisNode({ llmClient: deps.synthesisLLM, eventBus: deps.eventBus, startTime: Date.now() }))

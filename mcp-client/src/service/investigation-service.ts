@@ -11,16 +11,21 @@ import { saveReport } from '#reporter/report.js';
 import { addToRegistry, isDuplicate } from '#reporter/registry.js';
 import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
+import { createPromptUser } from '#agent/prompt-user-factory.js';
 
 export type InvestigationDeps = {
   mcpCall: McpCall;
   onEvent?: (event: AgentEvent) => void;
   promptUser?: (q: string) => Promise<string>;
+  callbackUrl?: string | undefined;
   configOverrides?: Record<string, unknown> | undefined;
 };
 
-const defaultPromptUser = (q: string): Promise<string> =>
-  Promise.resolve(`[AUTONOMOUS] Skipped: ${q}`);
+const resolvePromptUser = (deps: InvestigationDeps): ((q: string) => Promise<string>) =>
+  deps.promptUser ?? createPromptUser({
+    mode: 'autonomous',
+    callbackUrl: deps.callbackUrl,
+  });
 
 const buildGraph = async (
   config: Awaited<ReturnType<typeof loadConfig>>,
@@ -34,7 +39,7 @@ const buildGraph = async (
     synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
     eventBus,
     mcpCall: deps.mcpCall,
-    promptUser: deps.promptUser ?? defaultPromptUser,
+    promptUser: resolvePromptUser(deps),
   });
 
 const handleReport = async (

@@ -93,3 +93,17 @@ export {
 export type {
   ToolName,
 } from './tool-names.js';
+
+export {
+  BUG_PATTERNS,
+} from './bug-patterns.js';
+
+export type {
+  BugPattern,
+} from './bug-patterns.js';
+
+export {
+  TOOL_ACCESS,
+  ToolAccessDeniedError,
+  assertToolAccess,
+} from './tool-access.js';

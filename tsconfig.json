@@ -4,6 +4,7 @@
     { "path": "shared" },
     { "path": "mcp-server" },
     { "path": "mcp-client" },
-    { "path": "api" }
+    { "path": "api" },
+    { "path": "tsconfig.test.json" }
   ]
 }

@@ -28,7 +28,7 @@ describe('pattern-matcher', () => {
     const matches = matchPatterns(signals);
     const jsException = matches.find((m) => m.pattern.id === 'js-exception');
     expect(jsException).toBeDefined();
-    expect(jsException!.confidence).toBeGreaterThan(0);
+    expect(jsException?.confidence).toBeGreaterThan(0);
   });
 
   it('ranks matches by confidence descending', () => {

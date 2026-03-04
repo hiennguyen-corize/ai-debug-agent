@@ -10,13 +10,20 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: [
+            'tests/unit/*.test.ts',
+            'tests/unit/*.ts',
+            'tests/mocks/*.ts',
+            'tests/integration/*.test.ts',
+          ],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
   },
   {
-    ignores: ['**/dist/', '**/node_modules/', 'fixture-app/', '**/*.mjs'],
+    ignores: ['**/dist/', '**/node_modules/', 'fixture-app/', '**/*.mjs', '.agent/'],
   },
   {
     rules: {
@@ -61,6 +68,19 @@ export default tseslint.config(
       'prefer-const': 'error',
       'no-var': 'error',
       'object-shorthand': 'error',
+    },
+  },
+  {
+    files: ['tests/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+      '@typescript-eslint/no-useless-default-assignment': 'off',
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+      '@typescript-eslint/strict-boolean-expressions': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
 );

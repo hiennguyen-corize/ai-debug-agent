@@ -4,9 +4,9 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getPage } from '../browser/browser.js';
-import { fillInput } from '../browser/actions.js';
-import { TOOL_FILL } from '../constants/tools.js';
+import { getPage } from '#browser/browser.js';
+import { fillInput } from '#browser/actions.js';
+import { TOOL_FILL } from '#constants/tools.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 export const registerFillTool = (server: McpServer): void => {

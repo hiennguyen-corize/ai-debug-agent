@@ -91,6 +91,24 @@ When user's prompt is NOT in English:
 
 ## TIER 1: CODE RULES (When Writing Code)
 
+### 📦 Import Rules
+
+**Use `#` subpath imports. NEVER use relative `../` paths.**
+
+```typescript
+// ❌ WRONG
+import { getPage } from '../browser/browser.js';
+import type { EventBus } from '../../observability/event-bus.js';
+
+// ✅ CORRECT
+import { getPage } from '#browser/browser.js';
+import type { EventBus } from '#observability/event-bus.js';
+```
+
+- Subpath mappings defined in each package's `package.json` `"imports"` field
+- TypeScript resolution via `tsconfig.json` `"paths"`
+- Same-directory `./` imports are fine
+
 ### 📱 Project Type Routing
 
 | Project Type | Primary Agent | Skills |

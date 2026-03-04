@@ -5,7 +5,7 @@
 import { readFile, access } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { SourceMapResult, SourceMapConfig } from '../types/index.js';
+import type { SourceMapResult, SourceMapConfig } from '#types/index.js';
 import { extractSourceMappingUrl } from './fallback.js';
 
 const DEFAULT_BUILD_DIRS = ['./dist', './build', './.next', './out'];

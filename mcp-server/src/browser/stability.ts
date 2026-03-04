@@ -3,7 +3,7 @@
  */
 
 import type { Page, ElementHandle } from 'playwright';
-import type { SelectorCandidate } from '../types/index.js';
+import type { SelectorCandidate } from '#types/index.js';
 import {
   STABILITY_ID,
   STABILITY_TEST_ID,
@@ -14,12 +14,12 @@ import {
   STABILITY_TAG,
   STABILITY_NTH_CHILD,
   STABILITY_FALLBACK,
-} from '../constants.js';
+} from '#constants.js';
 import {
   ID_SELECTOR_PATTERN,
   TAG_CLASS_SELECTOR_PATTERN,
   TAG_ONLY_SELECTOR_PATTERN,
-} from '../constants/selectors.js';
+} from '#constants/selectors.js';
 
 type ElementAttributes = {
   id: string;

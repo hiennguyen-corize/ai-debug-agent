@@ -9,9 +9,9 @@ import {
   type CodeAnalysis,
   type SourceMapResolution,
 } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
-import type { EventBus } from '../../observability/event-bus.js';
-import { FetchSourceMapResponseSchema, ResolveErrorLocationResponseSchema } from '../../schemas/responses.js';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import { FetchSourceMapResponseSchema, ResolveErrorLocationResponseSchema } from '#schemas/responses.js';
 
 type SourceMapDeps = {
   eventBus: EventBus;

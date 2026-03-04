@@ -3,7 +3,7 @@
  */
 
 import type { Page } from 'playwright';
-import type { ActionResult, GuardrailConfig } from '../types/index.js';
+import type { ActionResult, GuardrailConfig } from '#types/index.js';
 import {
   CLICK_TIMEOUT_MS,
   FILL_TIMEOUT_MS,
@@ -15,7 +15,7 @@ import {
   SPA_SETTLE_DELAY_MS,
   NAVIGATION_TIMEOUT_MS,
   INNER_TEXT_TIMEOUT_MS,
-} from '../constants.js';
+} from '#constants.js';
 import { checkGuardrails } from './guardrails.js';
 
 const waitForSPA = async (page: Page, waitMs: number): Promise<void> => {

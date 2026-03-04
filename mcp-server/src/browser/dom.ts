@@ -3,8 +3,8 @@
  */
 
 import type { Page, ElementHandle } from 'playwright';
-import type { DomElement, DomSnapshot, SelectorCandidate } from '../types/index.js';
-import { DEFAULT_MAX_ELEMENTS, ELEMENT_TEXT_MAX_LENGTH } from '../constants.js';
+import type { DomElement, DomSnapshot, SelectorCandidate } from '#types/index.js';
+import { DEFAULT_MAX_ELEMENTS, ELEMENT_TEXT_MAX_LENGTH } from '#constants.js';
 import { findBestSelector } from './stability.js';
 
 const INTERACTIVE_TAGS = new Set([

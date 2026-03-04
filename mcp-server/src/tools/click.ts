@@ -4,9 +4,9 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getPage } from '../browser/browser.js';
-import { clickElement } from '../browser/actions.js';
-import { TOOL_CLICK } from '../constants/tools.js';
+import { getPage } from '#browser/browser.js';
+import { clickElement } from '#browser/actions.js';
+import { TOOL_CLICK } from '#constants/tools.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 export const registerClickTool = (server: McpServer): void => {

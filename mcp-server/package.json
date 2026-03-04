@@ -4,6 +4,14 @@
     "private": true,
     "type": "module",
     "main": "./dist/index.js",
+    "imports": {
+        "#browser/*.js": "./dist/browser/*.js",
+        "#constants.js": "./dist/constants.js",
+        "#constants/*.js": "./dist/constants/*.js",
+        "#sourcemap/*.js": "./dist/sourcemap/*.js",
+        "#tools/*.js": "./dist/tools/*.js",
+        "#types/*.js": "./dist/types/*.js"
+    },
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",

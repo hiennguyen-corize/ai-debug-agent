@@ -2,13 +2,13 @@
  * Guardrails — block dangerous browser actions.
  */
 
-import type { GuardrailConfig, GuardrailResult } from '../types/index.js';
+import type { GuardrailConfig, GuardrailResult } from '#types/index.js';
 import {
   PAYMENT_PATTERN,
   DELETE_PATTERN,
   LOGOUT_PATTERN,
   ACCOUNT_PATTERN,
-} from '../constants/guardrails.js';
+} from '#constants/guardrails.js';
 
 const DANGEROUS_PATTERNS: ReadonlyMap<string, RegExp> = new Map([
   ['payment', PAYMENT_PATTERN],

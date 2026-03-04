@@ -8,10 +8,10 @@ import {
   REPORT_SEVERITY,
   type InvestigationReport,
 } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
-import type { EventBus } from '../../observability/event-bus.js';
-import type { LLMClient } from '../../agent/llm-client.js';
-import { SYNTHESIS_SYSTEM_PROMPT } from '../../agent/prompts.js';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import type { LLMClient } from '#agent/llm-client.js';
+import { SYNTHESIS_SYSTEM_PROMPT } from '#agent/prompts.js';
 
 type SynthesisDeps = {
   llmClient: LLMClient;

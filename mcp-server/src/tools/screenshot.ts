@@ -4,8 +4,8 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getPage } from '../browser/browser.js';
-import { TOOL_SCREENSHOT } from '../constants/tools.js';
+import { getPage } from '#browser/browser.js';
+import { TOOL_SCREENSHOT } from '#constants/tools.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 export const registerScreenshotTool = (server: McpServer): void => {

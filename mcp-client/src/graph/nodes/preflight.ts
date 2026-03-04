@@ -3,7 +3,7 @@
  */
 
 import { INVESTIGATION_STATUS } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
+import type { AgentState } from '#graph/state.js';
 
 const DEFAULT_HINT = 'general bug investigation — scan for any errors or anomalies';
 

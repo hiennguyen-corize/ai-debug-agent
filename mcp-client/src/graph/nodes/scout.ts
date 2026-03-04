@@ -6,15 +6,15 @@ import {
   INVESTIGATION_STATUS, AGENT_NAME, TOOL_NAME,
   type ScoutObservation, type Evidence, EVIDENCE_TYPE, EVIDENCE_CATEGORY,
 } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
-import type { EventBus } from '../../observability/event-bus.js';
-import type { LLMClient } from '../../agent/llm-client.js';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import type { LLMClient } from '#agent/llm-client.js';
 import {
   NavigateResponseSchema,
   ConsoleLogsResponseSchema,
   NetworkLogsResponseSchema,
   DomResponseSchema,
-} from '../../schemas/responses.js';
+} from '#schemas/responses.js';
 
 type ScoutDeps = {
   llmClient: LLMClient;

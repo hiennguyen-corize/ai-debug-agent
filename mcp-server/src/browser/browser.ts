@@ -4,8 +4,8 @@
  */
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import type { BrowserConfig } from '../types/index.js';
-import { DEFAULT_TIMEOUT_MS } from '../constants.js';
+import type { BrowserConfig } from '#types/index.js';
+import { DEFAULT_TIMEOUT_MS } from '#constants.js';
 
 let browser: Browser | null = null;
 const contexts = new Map<string, BrowserContext>();

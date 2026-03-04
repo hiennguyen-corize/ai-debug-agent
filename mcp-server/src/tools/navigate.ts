@@ -4,10 +4,10 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { createSession } from '../browser/browser.js';
-import { navigateTo } from '../browser/actions.js';
-import { PageCollector } from '../browser/collector.js';
-import { TOOL_NAVIGATE } from '../constants/tools.js';
+import { createSession } from '#browser/browser.js';
+import { navigateTo } from '#browser/actions.js';
+import { PageCollector } from '#browser/collector.js';
+import { TOOL_NAVIGATE } from '#constants/tools.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 const collectors = new Map<string, PageCollector>();

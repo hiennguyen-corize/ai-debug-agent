@@ -3,8 +3,8 @@
  */
 
 import type { Page, Request, Response, ConsoleMessage } from 'playwright';
-import type { CapturedRequest, CapturedLog, CorrelatedEvidence, ConsoleLogType, NetworkPayload } from '../types/index.js';
-import { CORRELATION_WINDOW_MS, CONSOLE_LOG_TYPE, HTTP_ERROR_MIN_STATUS, RESPONSE_BODY_MAX_BYTES, isConsoleLogType } from '../constants.js';
+import type { CapturedRequest, CapturedLog, CorrelatedEvidence, ConsoleLogType, NetworkPayload } from '#types/index.js';
+import { CORRELATION_WINDOW_MS, CONSOLE_LOG_TYPE, HTTP_ERROR_MIN_STATUS, RESPONSE_BODY_MAX_BYTES, isConsoleLogType } from '#constants.js';
 
 const toConsoleLogType = (raw: string): ConsoleLogType =>
   isConsoleLogType(raw) ? raw : CONSOLE_LOG_TYPE.LOG;

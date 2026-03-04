@@ -6,11 +6,11 @@ import {
   INVESTIGATION_STATUS,
   AGENT_NAME,
 } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
-import type { EventBus } from '../../observability/event-bus.js';
-import type { LLMClient } from '../../agent/llm-client.js';
-import { INVESTIGATOR_SYSTEM_PROMPT } from '../../agent/prompts.js';
-import { getTextContent } from '../../agent/tool-parser.js';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import type { LLMClient } from '#agent/llm-client.js';
+import { INVESTIGATOR_SYSTEM_PROMPT } from '#agent/prompts.js';
+import { getTextContent } from '#agent/tool-parser.js';
 
 type InvestigatorDeps = {
   llmClient: LLMClient;

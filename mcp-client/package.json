@@ -4,6 +4,15 @@
     "private": true,
     "type": "module",
     "main": "./dist/index.js",
+    "imports": {
+        "#agent/*.js": "./dist/agent/*.js",
+        "#auth/*.js": "./dist/auth/*.js",
+        "#graph/*.js": "./dist/graph/*.js",
+        "#model/*.js": "./dist/model/*.js",
+        "#observability/*.js": "./dist/observability/*.js",
+        "#reporter/*.js": "./dist/reporter/*.js",
+        "#schemas/*.js": "./dist/schemas/*.js"
+    },
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",

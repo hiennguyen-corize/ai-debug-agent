@@ -4,8 +4,8 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TOOL_READ_SOURCE_FILE } from '../constants/tools.js';
-import { readSourceFromFile } from '../sourcemap/reader.js';
+import { TOOL_READ_SOURCE_FILE } from '#constants/tools.js';
+import { readSourceFromFile } from '#sourcemap/reader.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 const handleReadSource = async (

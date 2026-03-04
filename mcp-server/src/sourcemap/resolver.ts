@@ -3,7 +3,7 @@
  */
 
 import type { SourceMapConsumer } from 'source-map';
-import type { ResolvedLocation } from '../types/index.js';
+import type { ResolvedLocation } from '#types/index.js';
 import { createConsumer } from './consumer.js';
 
 const SURROUNDING_LINES = 7;

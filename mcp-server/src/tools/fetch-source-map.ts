@@ -4,8 +4,8 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TOOL_FETCH_SOURCE_MAP } from '../constants/tools.js';
-import { fetchSourceMap } from '../sourcemap/fetcher.js';
+import { TOOL_FETCH_SOURCE_MAP } from '#constants/tools.js';
+import { fetchSourceMap } from '#sourcemap/fetcher.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 export const registerFetchSourceMapTool = (server: McpServer): void => {

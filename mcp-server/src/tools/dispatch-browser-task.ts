@@ -4,7 +4,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TOOL_DISPATCH_BROWSER_TASK } from '../constants/tools.js';
+import { TOOL_DISPATCH_BROWSER_TASK } from '#constants/tools.js';
 import { toolSuccess } from './helpers.js';
 
 type TaskInput = {

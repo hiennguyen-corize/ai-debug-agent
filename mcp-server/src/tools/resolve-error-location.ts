@@ -4,9 +4,9 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TOOL_RESOLVE_ERROR_LOCATION } from '../constants/tools.js';
-import { fetchSourceMap } from '../sourcemap/fetcher.js';
-import { resolveLocation } from '../sourcemap/resolver.js';
+import { TOOL_RESOLVE_ERROR_LOCATION } from '#constants/tools.js';
+import { fetchSourceMap } from '#sourcemap/fetcher.js';
+import { resolveLocation } from '#sourcemap/resolver.js';
 import { toolSuccess, toolError } from './helpers.js';
 
 const handleResolve = async (

@@ -11,10 +11,10 @@ import {
   EVIDENCE_TYPE,
   EVIDENCE_CATEGORY,
 } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
-import type { EventBus } from '../../observability/event-bus.js';
-import type { LLMClient } from '../../agent/llm-client.js';
-import { DispatchTaskResponseSchema } from '../../schemas/responses.js';
+import type { AgentState } from '#graph/state.js';
+import type { EventBus } from '#observability/event-bus.js';
+import type { LLMClient } from '#agent/llm-client.js';
+import { DispatchTaskResponseSchema } from '#schemas/responses.js';
 
 type ExplorerDeps = {
   llmClient: LLMClient;

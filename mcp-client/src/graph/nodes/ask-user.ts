@@ -3,7 +3,7 @@
  */
 
 import { INVESTIGATION_STATUS, type UserClarification } from '@ai-debug/shared';
-import type { AgentState } from '../state.js';
+import type { AgentState } from '#graph/state.js';
 
 type AskUserDeps = {
   promptUser: (question: string) => Promise<string>;

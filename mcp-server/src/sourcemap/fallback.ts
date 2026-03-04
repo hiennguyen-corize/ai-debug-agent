@@ -2,7 +2,7 @@
  * Error location parsing from console error strings.
  */
 
-import type { ParsedErrorLocation } from '../types/index.js';
+import type { ParsedErrorLocation } from '#types/index.js';
 
 const ERROR_LOCATION_PATTERN = /(?:at\s+.*?\(|@)(https?:\/\/[^:]+):(\d+):(\d+)/;
 const SIMPLE_LOCATION_PATTERN = /(https?:\/\/[^:]+\.js):(\d+):(\d+)/;

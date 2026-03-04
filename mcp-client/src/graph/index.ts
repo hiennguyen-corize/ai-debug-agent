@@ -12,8 +12,8 @@ import {
   routeFromAskUser,
 } from './routing.js';
 import { preflightNode } from './nodes/preflight.js';
-import type { EventBus } from '../observability/event-bus.js';
-import type { LLMClient } from '../agent/llm-client.js';
+import type { EventBus } from '#observability/event-bus.js';
+import type { LLMClient } from '#agent/llm-client.js';
 
 type GraphDeps = {
   investigatorLLM: LLMClient;

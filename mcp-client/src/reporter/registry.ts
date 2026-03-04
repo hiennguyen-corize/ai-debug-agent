@@ -5,7 +5,7 @@
 import { join } from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import type { InvestigationReport, ReportSeverity } from '@ai-debug/shared';
-import { RegistrySchema } from '../schemas/responses.js';
+import { RegistrySchema } from '#schemas/responses.js';
 
 const REGISTRY_FILE = 'report-registry.json';
 const REPORTS_DIR = './debug-reports';

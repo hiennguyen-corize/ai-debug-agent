@@ -3,7 +3,7 @@
  */
 
 import type { SourceMapConsumer } from 'source-map';
-import type { ImportChainLink } from '../types/index.js';
+import type { ImportChainLink } from '#types/index.js';
 import { createConsumer, getConsumerSources } from './consumer.js';
 
 const FILE_ROLE_PATTERN = {

@@ -107,3 +107,13 @@ export {
   ToolAccessDeniedError,
   assertToolAccess,
 } from './tool-access.js';
+
+export {
+  SKILL_CATEGORY,
+} from './skill-types.js';
+
+export type {
+  Skill,
+  SkillCategory,
+  SkillMetadata,
+} from './skill-types.js';

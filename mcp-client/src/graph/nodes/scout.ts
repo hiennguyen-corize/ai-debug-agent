@@ -9,6 +9,8 @@ import {
 import type { AgentState } from '#graph/state.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
+import type { SkillRegistry } from '#agent/skill-registry.js';
+import { detectFrameworks } from '#agent/framework-detector.js';
 import {
   NavigateResponseSchema,
   ConsoleLogsResponseSchema,
@@ -20,6 +22,7 @@ type ScoutDeps = {
   llmClient: LLMClient;
   eventBus: EventBus;
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
+  skillRegistry?: SkillRegistry | undefined;
 };
 
 const DOM_SNAPSHOT_MAX_LENGTH = 2000;
@@ -83,10 +86,30 @@ const collectObservations = async (
 export const createScoutNode = (deps: ScoutDeps) =>
   async (state: AgentState): Promise<Partial<AgentState>> => {
     const { observations, sessionId, evidence } = await collectObservations(state.url, state.hint, deps);
+
+    const frameworkResults = detectFrameworks({
+      domContent: observations.domSnapshot,
+      networkUrls: observations.bundleUrls,
+    });
+    const detectedFrameworks = frameworkResults.map((f) => f.id);
+
+    let activeSkills: string[] = [];
+    if (deps.skillRegistry !== undefined) {
+      const matches = deps.skillRegistry.resolveSkills({
+        consoleErrors: observations.consoleErrors,
+        networkErrors: observations.networkErrors.map((e) => `network ${e.status.toString()}`),
+        domObservations: [],
+        detectedFrameworks,
+      });
+      activeSkills = matches.map((m) => m.skill.id);
+    }
+
     return {
       initialObservations: observations,
       currentSessionId: sessionId,
       status: INVESTIGATION_STATUS.HYPOTHESIZING,
       evidence: [...state.evidence, ...evidence],
+      detectedFrameworks,
+      activeSkills,
     };
   };

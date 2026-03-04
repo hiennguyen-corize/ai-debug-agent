@@ -8,8 +8,6 @@
   "include": ["tests/**/*.ts", "vitest.config.ts"],
   "references": [
     { "path": "shared" },
-    { "path": "mcp-server" },
-    { "path": "mcp-client" },
-    { "path": "api" }
+    { "path": "mcp-client" }
   ]
 }

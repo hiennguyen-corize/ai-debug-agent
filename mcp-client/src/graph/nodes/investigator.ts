@@ -9,6 +9,7 @@ import {
 import type { AgentState } from '#graph/state.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
+import type { SkillRegistry } from '#agent/skill-registry.js';
 import { INVESTIGATOR_SYSTEM_PROMPT } from '#agent/prompts.js';
 import { getTextContent } from '#agent/tool-parser.js';
 
@@ -16,11 +17,18 @@ type InvestigatorDeps = {
   llmClient: LLMClient;
   eventBus: EventBus;
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
+  skillRegistry?: SkillRegistry | undefined;
 };
 
-const buildMessages = (state: AgentState): { role: string; content: string }[] => {
+const buildMessages = (state: AgentState, deps: InvestigatorDeps): { role: string; content: string }[] => {
+  let systemPrompt: string = INVESTIGATOR_SYSTEM_PROMPT;
+  if (deps.skillRegistry !== undefined && state.activeSkills.length > 0) {
+    const skillContext = deps.skillRegistry.buildPromptContext(state.activeSkills);
+    systemPrompt = `${INVESTIGATOR_SYSTEM_PROMPT}\n\n# Active Skills\n\n${skillContext}`;
+  }
+
   const msgs: { role: string; content: string }[] = [
-    { role: 'system', content: INVESTIGATOR_SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
   ];
   if (state.initialObservations !== null) msgs.push({ role: 'user', content: `Scout:\n${JSON.stringify(state.initialObservations, null, 2)}` });
   if (state.hint !== null) msgs.push({ role: 'user', content: `Hint: ${state.hint}` });
@@ -45,7 +53,7 @@ const invokeInvestigator = async (state: AgentState, deps: InvestigatorDeps): Pr
 
   const response = await deps.llmClient.client.chat.completions.create({
     model: deps.llmClient.model,
-    messages: buildMessages(state) as Parameters<typeof deps.llmClient.client.chat.completions.create>[0]['messages'],
+    messages: buildMessages(state, deps) as Parameters<typeof deps.llmClient.client.chat.completions.create>[0]['messages'],
     temperature: 0.2,
   });
 

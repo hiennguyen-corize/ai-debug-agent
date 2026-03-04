@@ -14,6 +14,7 @@ import {
 import { preflightNode } from './nodes/preflight.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
+import type { SkillRegistry } from '#agent/skill-registry.js';
 import { assertToolAccess, type AgentName } from '@ai-debug/shared';
 
 type McpCall = (tool: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -26,6 +27,7 @@ type GraphDeps = {
   eventBus: EventBus;
   mcpCall: McpCall;
   promptUser: (question: string) => Promise<string>;
+  skillRegistry?: SkillRegistry | undefined;
 };
 
 const scopedMcpCall = (agent: AgentName, mcpCall: McpCall): McpCall =>
@@ -45,8 +47,8 @@ export const createInvestigationGraph = async (deps: GraphDeps) => {
 
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode('preflight', preflightNode)
-    .addNode('scout', createScoutNode({ llmClient: deps.scoutLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('scout', deps.mcpCall) }))
-    .addNode('investigator', createInvestigatorNode({ llmClient: deps.investigatorLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('investigator', deps.mcpCall) }))
+    .addNode('scout', createScoutNode({ llmClient: deps.scoutLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('scout', deps.mcpCall), skillRegistry: deps.skillRegistry }))
+    .addNode('investigator', createInvestigatorNode({ llmClient: deps.investigatorLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('investigator', deps.mcpCall), skillRegistry: deps.skillRegistry }))
     .addNode('explorer', createExplorerNode({ llmClient: deps.explorerLLM, eventBus: deps.eventBus, mcpCall: scopedMcpCall('explorer', deps.mcpCall) }))
     .addNode('source_map', createSourceMapNode({ eventBus: deps.eventBus, mcpCall: scopedMcpCall('investigator', deps.mcpCall) }))
     .addNode('ask_user', createAskUserNode({ promptUser: deps.promptUser }))

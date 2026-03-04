@@ -54,6 +54,15 @@ export const AgentStateAnnotation = Annotation.Root({
   iterationCount: Annotation<number>,
   maxIterations: Annotation<number>,
 
+  detectedFrameworks: Annotation<string[]>({
+    reducer: (prev, next) => next,
+    default: () => [],
+  }),
+  activeSkills: Annotation<string[]>({
+    reducer: (prev, next) => next,
+    default: () => [],
+  }),
+
   finalReport: Annotation<InvestigationReport | null>,
 });
 

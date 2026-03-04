@@ -21,6 +21,10 @@ import { registerResolveErrorLocationTool } from './tools/resolve-error-location
 import { registerReadSourceFileTool } from './tools/read-source-file.js';
 import { registerDispatchBrowserTaskTool } from './tools/dispatch-browser-task.js';
 import { registerAskUserTool } from './tools/ask-user.js';
+import { registerScrollTool } from './tools/scroll.js';
+import { registerUploadFileTool } from './tools/upload-file.js';
+import { registerFinishInvestigationTool } from './tools/finish-investigation.js';
+import { registerInvestigateBugTool } from './tools/investigate-bug.js';
 
 const server = new McpServer({
   name: 'ai-debug-mcp-server',
@@ -43,6 +47,10 @@ registerResolveErrorLocationTool(server);
 registerReadSourceFileTool(server);
 registerDispatchBrowserTaskTool(server);
 registerAskUserTool(server);
+registerScrollTool(server);
+registerUploadFileTool(server);
+registerFinishInvestigationTool(server);
+registerInvestigateBugTool(server);
 
 const main = async (): Promise<void> => {
   const transport = new StdioServerTransport();

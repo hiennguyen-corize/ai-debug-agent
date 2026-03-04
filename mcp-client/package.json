@@ -4,6 +4,16 @@
     "private": true,
     "type": "module",
     "main": "./dist/index.js",
+    "exports": {
+        ".": "./dist/index.js",
+        "./graph": "./dist/graph/index.js",
+        "./agent/llm-client": "./dist/agent/llm-client.js",
+        "./agent/config-loader": "./dist/agent/config-loader.js",
+        "./observability/event-bus": "./dist/observability/event-bus.js",
+        "./observability/step-aggregator": "./dist/observability/step-aggregator.js",
+        "./reporter/report": "./dist/reporter/report.js",
+        "./reporter/registry": "./dist/reporter/registry.js"
+    },
     "imports": {
         "#agent/*.js": "./dist/agent/*.js",
         "#auth/*.js": "./dist/auth/*.js",
@@ -31,7 +41,8 @@
         "pino": "^9.0.0",
         "signal-exit": "^4.1.0",
         "zod": "^3.24.0",
-        "dotenv": "^16.4.0"
+        "dotenv": "^16.4.0",
+        "@ai-debug/shared": "workspace:*"
     },
     "optionalDependencies": {
         "ink": "^5.0.0",

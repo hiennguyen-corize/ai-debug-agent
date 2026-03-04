@@ -143,3 +143,16 @@ export const scrollPage = async (
     return failResult(err);
   }
 };
+
+export const uploadFile = async (
+  page: Page,
+  selector: string,
+  filePath: string,
+): Promise<ActionResult> => {
+  try {
+    await page.locator(selector).first().setInputFiles(filePath);
+    return { success: true };
+  } catch (err) {
+    return failResult(err);
+  }
+};

@@ -4,12 +4,18 @@
     "private": true,
     "type": "module",
     "main": "./dist/server.js",
+    "imports": {
+        "#routes/*.js": "./dist/routes/*.js"
+    },
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",
         "dev": "node --watch dist/server.js"
     },
     "dependencies": {
-        "hono": "^4.7.0"
+        "hono": "^4.7.0",
+        "@hono/node-server": "^1.13.0",
+        "@ai-debug/shared": "workspace:*",
+        "@ai-debug/mcp-client": "workspace:*"
     }
 }

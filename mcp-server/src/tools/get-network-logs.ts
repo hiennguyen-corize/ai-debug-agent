@@ -22,7 +22,7 @@ export const registerGetNetworkLogsTool = (server: McpServer): void => {
       try {
         const collector = getCollector(sessionId);
         const logs = (errorsOnly ?? false) ? collector.getNetworkErrors() : collector.getNetworkLogs();
-        return toolSuccess(logs);
+        return toolSuccess({ logs });
       } catch (err) {
         return toolError(err);
       }

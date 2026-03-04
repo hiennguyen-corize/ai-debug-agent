@@ -22,7 +22,7 @@ export const registerGetConsoleLogsTool = (server: McpServer): void => {
       try {
         const collector = getCollector(sessionId);
         const logs = (errorsOnly ?? false) ? collector.getConsoleErrors() : collector.getConsoleLogs();
-        return toolSuccess(logs);
+        return toolSuccess({ logs });
       } catch (err) {
         return toolError(err);
       }

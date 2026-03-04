@@ -8,90 +8,63 @@
 
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { InvestigationRequestSchema, type AgentEvent } from '@ai-debug/shared';
 import {
-  InvestigationRequestSchema,
-  type InvestigationReport,
-  type AgentEvent,
-} from '@ai-debug/shared';
+  createInMemoryThreadRepository,
+  type InvestigationThread,
+} from '#repositories/thread-repository.js';
 
-type InvestigationThread = {
-  id: string;
-  status: 'running' | 'done' | 'error';
-  request: { url: string; hint?: string; mode: string };
-  report: InvestigationReport | null;
-  error: string | null;
-  subscribers: ((event: AgentEvent) => void)[];
-};
-
-const threads = new Map<string, InvestigationThread>();
+const threads = createInMemoryThreadRepository();
 
 export const investigateRoute = new Hono();
 
-investigateRoute.post('/', async (c) => {
-  const body = InvestigationRequestSchema.safeParse(await c.req.json());
-  if (!body.success) {
-    return c.json({ error: body.error.flatten() }, 400);
-  }
-
-  const threadId = `debug-${Date.now().toString()}`;
-  const thread: InvestigationThread = {
-    id: threadId,
-    status: 'running',
-    request: { url: body.data.url, hint: body.data.hint ?? '', mode: body.data.mode },
-    report: null,
-    error: null,
-    subscribers: [],
-  };
-  threads.set(threadId, thread);
-
-  // Fire-and-forget graph invocation
+const startInvestigation = (thread: InvestigationThread, config?: Record<string, unknown>): void => {
   void (async () => {
     try {
-      const { createInvestigationGraph } = await import('@ai-debug/mcp-client/graph');
-      const { createLLMClient } = await import('@ai-debug/mcp-client/agent/llm-client');
-      const { createEventBus } = await import('@ai-debug/mcp-client/observability/event-bus');
-      const { loadConfig } = await import('@ai-debug/mcp-client/agent/config-loader');
-      const { AGENT_NAME } = await import('@ai-debug/shared');
+      const { createDefaultBridge } = await import('@ai-debug/mcp-client/agent/bridge-factory');
+      const { runInvestigationPipeline } = await import('@ai-debug/mcp-client/service/investigation-service');
 
-      const config = await loadConfig(body.data.config);
-      const eventBus = createEventBus();
+      const bridge = await createDefaultBridge();
 
-      // Broadcast events to SSE subscribers
-      eventBus.subscribe((event) => {
-        for (const sub of thread.subscribers) sub(event);
-      });
-
-      const graph = await createInvestigationGraph({
-        investigatorLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
-        explorerLLM: createLLMClient(AGENT_NAME.EXPLORER, config),
-        scoutLLM: createLLMClient(AGENT_NAME.SCOUT, config),
-        synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
-        eventBus,
-        mcpCall: (tool, args) => Promise.resolve({ tool, args, status: 'dispatched' }),
-        promptUser: (q) => Promise.resolve(`[AUTONOMOUS] Skipped: ${q}`),
-      });
-
-      const result = await graph.invoke({
-        url: body.data.url,
-        hint: body.data.hint ?? '',
-        investigationMode: body.data.mode,
-      });
-
-      thread.report = result.finalReport ?? null;
-      thread.status = 'done';
+      try {
+        const report = await runInvestigationPipeline(
+          { url: thread.request.url, hint: thread.request.hint, mode: thread.request.mode },
+          {
+            mcpCall: bridge.call,
+            onEvent: (event) => { for (const sub of thread.subscribers) sub(event); },
+            configOverrides: config,
+          },
+        );
+        threads.update(thread.id, { report, status: 'done' });
+      } finally {
+        await bridge.close();
+      }
     } catch (err) {
-      thread.error = err instanceof Error ? err.message : String(err);
-      thread.status = 'error';
+      threads.update(thread.id, {
+        error: err instanceof Error ? err.message : String(err),
+        status: 'error',
+      });
     }
   })();
+};
 
-  return c.json({ threadId, status: 'started' }, 201);
+investigateRoute.post('/', async (c) => {
+  const body = InvestigationRequestSchema.safeParse(await c.req.json());
+  if (!body.success) return c.json({ error: body.error.flatten() }, 400);
+
+  const thread = threads.create({
+    url: body.data.url,
+    hint: body.data.hint ?? '',
+    mode: body.data.mode,
+  });
+
+  startInvestigation(thread, body.data.config);
+  return c.json({ threadId: thread.id, status: 'started' }, 201);
 });
 
 investigateRoute.get('/:threadId', (c) => {
   const thread = threads.get(c.req.param('threadId'));
-  if (!thread) return c.json({ error: 'Thread not found' }, 404);
-
+  if (thread === undefined) return c.json({ error: 'Thread not found' }, 404);
   return c.json({
     threadId: thread.id,
     status: thread.status,
@@ -103,7 +76,7 @@ investigateRoute.get('/:threadId', (c) => {
 
 investigateRoute.get('/:threadId/stream', (c) => {
   const thread = threads.get(c.req.param('threadId'));
-  if (!thread) return c.json({ error: 'Thread not found' }, 404);
+  if (thread === undefined) return c.json({ error: 'Thread not found' }, 404);
 
   return streamSSE(c, async (stream) => {
     const onEvent = (event: AgentEvent): void => {
@@ -112,7 +85,6 @@ investigateRoute.get('/:threadId/stream', (c) => {
 
     thread.subscribers.push(onEvent);
 
-    // Keep alive until investigation done
     await new Promise<void>((resolve) => {
       const check = setInterval(() => {
         if (thread.status !== 'running') {
@@ -122,7 +94,6 @@ investigateRoute.get('/:threadId/stream', (c) => {
       }, 500);
     });
 
-    // Remove subscriber
     const idx = thread.subscribers.indexOf(onEvent);
     if (idx !== -1) thread.subscribers.splice(idx, 1);
   });

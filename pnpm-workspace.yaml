@@ -3,6 +3,7 @@ packages:
   - mcp-server
   - mcp-client
   - api
+  - web
 
 onlyBuiltDependencies:
   - better-sqlite3

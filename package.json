@@ -10,7 +10,8 @@
     "shared",
     "mcp-server",
     "mcp-client",
-    "api"
+    "api",
+    "web"
   ],
   "scripts": {
     "typecheck": "tsc --build",

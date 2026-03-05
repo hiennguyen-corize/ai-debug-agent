@@ -6,3 +6,4 @@ debug-reports/report-registry.json
 .env
 *.log
 .DS_Store
+__pycache__/*

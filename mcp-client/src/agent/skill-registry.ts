@@ -74,18 +74,16 @@ export class SkillRegistry {
     const sections: string[] = [];
     const seen = new Set<string>();
 
-    // Always-active skills first
-    for (const skill of this.getAlwaysActive()) {
+    const addSkill = (skill: Skill): void => {
+      if (seen.has(skill.id)) return;
       seen.add(skill.id);
       sections.push(`## [Skill: ${skill.name}]\n\n${skill.instructions}`);
-    }
+    };
 
-    // Then matched skills
+    for (const skill of this.getAlwaysActive()) addSkill(skill);
     for (const id of skillIds) {
-      if (seen.has(id)) continue;
       const skill = this.skills.get(id);
-      if (skill === undefined) continue;
-      sections.push(`## [Skill: ${skill.name}]\n\n${skill.instructions}`);
+      if (skill !== undefined) addSkill(skill);
     }
 
     return sections.join('\n\n---\n\n');

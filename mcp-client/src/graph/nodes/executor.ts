@@ -18,7 +18,6 @@ import { buildExecutorMessages } from '#agent/prompts.js';
 import { hasToolCalls, extractThinking } from '#agent/tool-parser.js';
 import { taskResultToEvidence } from '#graph/nodes/evidence.js';
 import type OpenAI from 'openai';
-
 import type { SkillRegistry } from '#agent/skill-registry.js';
 
 type ExecutorDeps = {

@@ -70,8 +70,8 @@ const invokeLLM = async (context: string, state: AgentState, deps: SynthesisDeps
   // If vision is supported, append screenshots as image content
   const screenshots = deps.supportsVision === true ? collectScreenshots(state) : [];
   if (screenshots.length > 0) {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg !== undefined && lastMsg.role === 'user') {
+    const lastMsg = messages.at(-1);
+    if (lastMsg?.role === 'user') {
       lastMsg.content = [
         { type: 'text' as const, text: typeof lastMsg.content === 'string' ? lastMsg.content : context },
         ...screenshots.map((s) => ({

@@ -11,7 +11,8 @@
       "#model/*.js": ["./src/model/*.ts"],
       "#observability/*.js": ["./src/observability/*.ts"],
       "#reporter/*.js": ["./src/reporter/*.ts"],
-      "#schemas/*.js": ["./src/schemas/*.ts"]
+      "#schemas/*.js": ["./src/schemas/*.ts"],
+      "#service/*.js": ["./src/service/*.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

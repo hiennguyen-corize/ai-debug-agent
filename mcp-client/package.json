@@ -12,7 +12,6 @@
         "./observability/event-bus": "./dist/observability/event-bus.js",
         "./observability/step-aggregator": "./dist/observability/step-aggregator.js",
         "./reporter/report": "./dist/reporter/report.js",
-        "./reporter/registry": "./dist/reporter/registry.js",
         "./agent/mcp-bridge": "./dist/agent/mcp-bridge.js",
         "./agent/bridge-factory": "./dist/agent/bridge-factory.js",
         "./service/investigation-service": "./dist/service/investigation-service.js"

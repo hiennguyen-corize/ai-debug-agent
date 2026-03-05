@@ -20,6 +20,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check-all": "pnpm typecheck && pnpm lint && pnpm test",
     "dev:api": "npm run dev -w api",
     "dev:mcp": "npm run dev -w mcp-server",
     "dev": "tsc --build && node api/dist/server.js",

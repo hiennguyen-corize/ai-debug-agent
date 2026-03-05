@@ -3,6 +3,7 @@
  */
 
 import type { Context } from 'hono';
+import type { TypedResponse } from 'hono/types';
 
 type ApiResponse<T> = {
   data: T;
@@ -19,17 +20,22 @@ type PaginatedMeta = {
   limit: number;
 };
 
-export const ok = <T>(c: Context, data: T, status: 200 | 201 = 200) =>
-  c.json({ data } satisfies ApiResponse<T>, status);
+export const ok = (c: Context, data: unknown, status: 200 | 201 = 200): TypedResponse => {
+  return c.json({ data } satisfies ApiResponse<unknown>, status);
+};
 
-export const created = <T>(c: Context, data: T) =>
-  ok(c, data, 201);
+export const created = (c: Context, data: unknown): TypedResponse => {
+  return ok(c, data, 201);
+};
 
-export const paginated = <T>(c: Context, data: T[], meta: PaginatedMeta) =>
-  c.json({ data, meta } satisfies ApiResponse<T[]>);
+export const paginated = (c: Context, data: unknown[], meta: PaginatedMeta): TypedResponse => {
+  return c.json({ data, meta } satisfies ApiResponse<unknown[]>);
+};
 
-export const notFound = (c: Context, message = 'Not found') =>
-  c.json({ error: message } satisfies ApiErrorResponse, 404);
+export const notFound = (c: Context, message = 'Not found'): TypedResponse => {
+  return c.json({ error: message } satisfies ApiErrorResponse, 404);
+};
 
-export const badRequest = (c: Context, details: unknown) =>
-  c.json({ error: 'Validation failed', details } satisfies ApiErrorResponse, 400);
+export const badRequest = (c: Context, details: unknown): TypedResponse => {
+  return c.json({ error: 'Validation failed', details } satisfies ApiErrorResponse, 400);
+};

@@ -6,7 +6,10 @@
     "paths": {
       "#routes/*.js": ["./routes/*.ts"],
       "#repositories/*.js": ["./repositories/*.ts"],
-      "#middleware/*.js": ["./middleware/*.ts"]
+      "#middleware/*.js": ["./middleware/*.ts"],
+      "#db/*.js": ["./db/*.ts"],
+      "#services/*.js": ["./services/*.ts"],
+      "#lib/*.js": ["./lib/*.ts"]
     }
   },
   "include": ["**/*.ts"],

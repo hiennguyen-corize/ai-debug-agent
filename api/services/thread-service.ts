@@ -15,7 +15,19 @@ type StartInvestigationInput = {
   callbackUrl?: string | undefined;
 };
 
-export const createThreadService = (repo: ThreadRepository) => {
+export const createThreadService = (repo: ThreadRepository): {
+  createThread(input: StartInvestigationInput): ThreadRecord;
+  getThread(threadId: string): ThreadRecord | undefined;
+  listThreads(): ThreadRecord[];
+  getThreadEvents(threadId: string): AgentEvent[];
+  completeThread(threadId: string, report: InvestigationReport | null): void;
+  failThread(threadId: string, error: string): void;
+  handleEvent(threadId: string, event: AgentEvent): void;
+  subscribe(threadId: string, subscriber: EventSubscriber): void;
+  unsubscribe(threadId: string, subscriber: EventSubscriber): void;
+  isRunning(threadId: string): boolean;
+  startPipeline(thread: ThreadRecord, input: StartInvestigationInput): Promise<void>;
+} => {
   const liveSubscribers = new Map<string, EventSubscriber[]>();
 
   const generateId = (): string => `debug-${Date.now().toString()}`;
@@ -90,7 +102,7 @@ export const createThreadService = (repo: ThreadRepository) => {
             { url: thread.url, hint: thread.hint, mode: thread.mode },
             {
               mcpCall: bridge.call,
-              onEvent: (event: AgentEvent) => this.handleEvent(thread.id, event),
+              onEvent: (event: AgentEvent) => { this.handleEvent(thread.id, event); },
               callbackUrl: input.callbackUrl,
               configOverrides: input.config,
             },

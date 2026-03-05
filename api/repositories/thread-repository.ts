@@ -41,7 +41,16 @@ const toRecord = (row: typeof threads.$inferSelect): ThreadRecord => ({
   createdAt: row.createdAt,
 });
 
-export const createThreadRepository = (db: AppDatabase) => ({
+export const createThreadRepository = (db: AppDatabase): {
+  create(input: CreateThreadInput): ThreadRecord;
+  findById(threadId: string): ThreadRecord | undefined;
+  findAll(): ThreadRecord[];
+  updateStatus(threadId: string, status: ThreadRecord['status']): void;
+  updateReport(threadId: string, report: InvestigationReport): void;
+  updateError(threadId: string, error: string): void;
+  insertEvent(threadId: string, event: AgentEvent): void;
+  findEventsByThreadId(threadId: string): AgentEvent[];
+} => ({
   create(input: CreateThreadInput): ThreadRecord {
     db.insert(threads).values({
       id: input.id,
@@ -50,7 +59,9 @@ export const createThreadRepository = (db: AppDatabase) => ({
       mode: input.mode,
     }).run();
 
-    return this.findById(input.id)!;
+    const thread = this.findById(input.id);
+    if (thread === undefined) throw new Error(`Thread ${input.id} not found after creation`);
+    return thread;
   },
 
   findById(threadId: string): ThreadRecord | undefined {

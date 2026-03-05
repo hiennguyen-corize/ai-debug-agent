@@ -4,7 +4,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -12,9 +12,11 @@ import * as schema from './schema.js';
 
 const DB_PATH = process.env['DB_PATH'] ?? 'data/debug-agent.db';
 
-let instance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+type DrizzleDb = BetterSQLite3Database<typeof schema>;
 
-export const getDb = () => {
+let instance: DrizzleDb | null = null;
+
+export const getDb = (): DrizzleDb => {
   if (instance !== null) return instance;
 
   mkdirSync(dirname(DB_PATH), { recursive: true });
@@ -52,4 +54,4 @@ export const getDb = () => {
   return instance;
 };
 
-export type AppDatabase = ReturnType<typeof getDb>;
+export type AppDatabase = DrizzleDb;

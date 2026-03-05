@@ -61,6 +61,7 @@ export {
 
 export type {
   InvestigationStatus,
+  InvestigationMode,
 } from './investigation.js';
 
 export {

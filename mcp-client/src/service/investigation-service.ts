@@ -10,7 +10,7 @@ import { createInvestigationLogger } from '#observability/investigation-logger.j
 import { createInvestigationGraph } from '#graph/index.js';
 import { saveReport } from '#reporter/report.js';
 import { addToRegistry, isDuplicate } from '#reporter/registry.js';
-import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent } from '@ai-debug/shared';
+import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent, type InvestigationMode } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
 import { createPromptUser } from '#agent/prompt-user-factory.js';
 
@@ -22,9 +22,12 @@ export type InvestigationDeps = {
   configOverrides?: Record<string, unknown> | undefined;
 };
 
-const resolvePromptUser = (deps: InvestigationDeps): ((q: string) => Promise<string>) =>
+const resolvePromptUser = (
+  deps: InvestigationDeps,
+  mode: InvestigationMode,
+): ((q: string) => Promise<string>) =>
   deps.promptUser ?? createPromptUser({
-    mode: 'autonomous',
+    mode,
     callbackUrl: deps.callbackUrl,
   });
 
@@ -32,6 +35,7 @@ const buildGraph = async (
   config: Awaited<ReturnType<typeof loadConfig>>,
   eventBus: EventBus,
   deps: InvestigationDeps,
+  mode: InvestigationMode,
 ): ReturnType<typeof createInvestigationGraph> =>
   createInvestigationGraph({
     investigatorLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
@@ -40,7 +44,7 @@ const buildGraph = async (
     synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
     eventBus,
     mcpCall: deps.mcpCall,
-    promptUser: resolvePromptUser(deps),
+    promptUser: resolvePromptUser(deps, mode),
   });
 
 const handleReport = async (
@@ -70,7 +74,7 @@ export const runInvestigationPipeline = async (
   );
 
   try {
-    const graph = await buildGraph(config, eventBus, deps);
+    const graph = await buildGraph(config, eventBus, deps, request.mode);
     const result = await graph.invoke({
       url: request.url,
       hint: request.hint ?? null,

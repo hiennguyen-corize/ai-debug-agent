@@ -1,6 +1,8 @@
 /**
- * Investigation status types.
+ * Investigation status and mode types.
  */
+
+export type InvestigationMode = 'interactive' | 'autonomous';
 
 export const INVESTIGATION_STATUS = {
   IDLE: 'idle',

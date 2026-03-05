@@ -3,12 +3,12 @@
  * Swappable to persistent storage later.
  */
 
-import type { InvestigationReport, AgentEvent } from '@ai-debug/shared';
+import type { InvestigationReport, AgentEvent, InvestigationMode } from '@ai-debug/shared';
 
 export type InvestigationThread = {
   id: string;
   status: 'running' | 'done' | 'error';
-  request: { url: string; hint?: string; mode: 'interactive' | 'autonomous' };
+  request: { url: string; hint?: string; mode: InvestigationMode };
   report: InvestigationReport | null;
   error: string | null;
   subscribers: ((event: AgentEvent) => void)[];

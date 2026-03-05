@@ -5,6 +5,7 @@
 import { Annotation } from '@langchain/langgraph';
 import type {
   InvestigationStatus,
+  InvestigationMode,
   Hypothesis,
   Evidence,
   ScoutObservation,
@@ -18,7 +19,7 @@ import type {
 export const AgentStateAnnotation = Annotation.Root({
   url: Annotation<string>,
   hint: Annotation<string | null>,
-  investigationMode: Annotation<'interactive' | 'autonomous'>,
+  investigationMode: Annotation<InvestigationMode>,
 
   status: Annotation<InvestigationStatus>,
 

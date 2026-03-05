@@ -87,6 +87,11 @@ export type {
   InvestigationReport,
 } from './domain.js';
 
+export type {
+  ParsedStackFrame,
+  ParsedError,
+} from './stack-frame.js';
+
 export {
   TOOL_NAME,
 } from './tool-names.js';

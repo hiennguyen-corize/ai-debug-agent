@@ -3,6 +3,7 @@
  */
 
 import type { Evidence, Hypothesis } from './hypothesis.js';
+import type { ParsedError } from './stack-frame.js';
 
 export type NetworkError = {
   url: string;
@@ -15,6 +16,7 @@ export type ScoutObservation = {
   url: string;
   pageTitle: string;
   consoleErrors: string[];
+  parsedErrors: ParsedError[];
   networkErrors: NetworkError[];
   suspiciousPatterns: string[];
   domSnapshot: string;

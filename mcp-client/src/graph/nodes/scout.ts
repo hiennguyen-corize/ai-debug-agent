@@ -13,6 +13,7 @@ import type { SkillRegistry } from '#agent/skill-registry.js';
 import { detectFrameworks } from '#agent/framework-detector.js';
 import { consoleErrorsToEvidence } from '#graph/nodes/evidence.js';
 import { extractInteractiveElements } from '#graph/nodes/dom-parser.js';
+import { parseStackTrace } from '#graph/nodes/stack-trace-parser.js';
 import {
   NavigateResponseSchema,
   ConsoleLogsResponseSchema,
@@ -48,10 +49,13 @@ const buildObservations = (
   consoleLogs: { logs: { type: string; text: string }[] },
   networkLogs: { logs: { url: string; method: string; status: number }[] },
   dom: { title: string; elements: unknown[] },
-): ScoutObservation => ({
+): ScoutObservation => {
+  const errorLogs = consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text);
+  return {
   url,
   pageTitle: dom.title,
-  consoleErrors: consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text),
+  consoleErrors: errorLogs,
+  parsedErrors: errorLogs.map(parseStackTrace),
   networkErrors: networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
     url: l.url, method: l.method, status: l.status, statusText: '',
   })),
@@ -60,7 +64,8 @@ const buildObservations = (
   bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
   interactiveElements: extractInteractiveElements(dom.elements),
   timestamp: new Date().toISOString(),
-});
+};
+};
 
 
 

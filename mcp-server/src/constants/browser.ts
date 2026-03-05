@@ -3,7 +3,7 @@
  */
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
-export const CLICK_TIMEOUT_MS = 10_000;
+export const CLICK_TIMEOUT_MS = 3_000;
 export const FILL_TIMEOUT_MS = 10_000;
 export const INNER_TEXT_TIMEOUT_MS = 5_000;
 export const NAVIGATION_TIMEOUT_MS = 30_000;

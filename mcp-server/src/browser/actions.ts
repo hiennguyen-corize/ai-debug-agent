@@ -18,6 +18,23 @@ import {
 } from '#constants.js';
 import { checkGuardrails } from './guardrails.js';
 
+// Normalize LLM-generated selectors to Playwright-compatible format
+const normalizeSelector = (raw: string): string => {
+  // "button:contains('Add to Cart')" → 'button:has-text("Add to Cart")'
+  const containsMatch = /^(.+?):contains\(['"](.+?)['"]\)$/i.exec(raw);
+  if (containsMatch?.[1] !== undefined && containsMatch[2] !== undefined) {
+    return `${containsMatch[1]}:has-text("${containsMatch[2]}")`;
+  }
+
+  // "button:Add to Cart" or "button:Browse Products" → 'button:has-text("...")'
+  const colonTextMatch = /^(button|a|span|div|input):([A-Z].+)$/i.exec(raw);
+  if (colonTextMatch?.[1] !== undefined && colonTextMatch[2] !== undefined) {
+    return `${colonTextMatch[1]}:has-text("${colonTextMatch[2]}")`;
+  }
+
+  return raw;
+};
+
 const waitForSPA = async (page: Page, waitMs: number): Promise<void> => {
   try {
     await page.waitForLoadState('networkidle', { timeout: waitMs });
@@ -32,7 +49,7 @@ const failResult = (err: unknown): ActionResult => ({
 
 const getElementText = async (page: Page, selector: string): Promise<string> => {
   try {
-    return await page.locator(selector).first().innerText({ timeout: INNER_TEXT_TIMEOUT_MS });
+    return await page.locator(normalizeSelector(selector)).first().innerText({ timeout: INNER_TEXT_TIMEOUT_MS });
   } catch { return ''; }
 };
 
@@ -63,7 +80,7 @@ export const clickElement = async (
   }
 
   try {
-    await page.locator(selector).first().click({ timeout: CLICK_TIMEOUT_MS });
+    await page.locator(normalizeSelector(selector)).first().click({ timeout: CLICK_TIMEOUT_MS });
     await waitForSPA(page, spaWaitMs);
     return { success: true };
   } catch (err) {
@@ -78,7 +95,7 @@ export const fillInput = async (
   spaWaitMs: number = FILL_SPA_WAIT_MS,
 ): Promise<ActionResult> => {
   try {
-    await page.locator(selector).first().fill(value, { timeout: FILL_TIMEOUT_MS });
+    await page.locator(normalizeSelector(selector)).first().fill(value, { timeout: FILL_TIMEOUT_MS });
     await waitForSPA(page, spaWaitMs);
     return { success: true };
   } catch (err) {

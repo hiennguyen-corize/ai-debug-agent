@@ -1,153 +1,24 @@
 /**
- * Explorer node — LLM-driven browser task execution with real browser tools.
+ * Explorer node — LLM-driven browser task execution with ReAct loop.
  */
 
 import {
   INVESTIGATION_STATUS,
   AGENT_NAME,
-  TOOL_NAME,
   type BrowserTaskResult,
-  type Evidence,
-  EVIDENCE_TYPE,
-  EVIDENCE_CATEGORY,
 } from '@ai-debug/shared';
 import type { AgentState } from '#graph/state.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
-import { EXPLORER_SYSTEM_PROMPT } from '#agent/prompts.js';
+import { buildExplorerMessages } from '#agent/prompts.js';
 import { parseToolCalls, hasToolCalls } from '#agent/tool-parser.js';
-import type OpenAI from 'openai';
+import { EXPLORER_TOOLS } from '#graph/nodes/explorer-tools.js';
+import { taskResultToEvidence } from '#graph/nodes/evidence.js';
 
 type ExplorerDeps = {
   llmClient: LLMClient;
   eventBus: EventBus;
   mcpCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
-};
-
-// --- Browser tool definitions for function calling ---
-
-const EXPLORER_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.BROWSER_NAVIGATE,
-      description: 'Navigate to a URL in the browser.',
-      parameters: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The URL to navigate to' },
-        },
-        required: ['url'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.BROWSER_GET_DOM,
-      description: 'Get the DOM snapshot of the current page.',
-      parameters: {
-        type: 'object',
-        properties: {
-          sessionId: { type: 'string', description: 'Browser session ID' },
-        },
-        required: ['sessionId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.GET_CONSOLE_LOGS,
-      description: 'Fetch console logs (errors, warnings, info) from the browser.',
-      parameters: {
-        type: 'object',
-        properties: {
-          sessionId: { type: 'string', description: 'Browser session ID' },
-        },
-        required: ['sessionId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.GET_NETWORK_LOGS,
-      description: 'Fetch network request logs (API calls, status codes, URLs).',
-      parameters: {
-        type: 'object',
-        properties: {
-          sessionId: { type: 'string', description: 'Browser session ID' },
-        },
-        required: ['sessionId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.BROWSER_SCREENSHOT,
-      description: 'Take a screenshot of the current page.',
-      parameters: {
-        type: 'object',
-        properties: {
-          sessionId: { type: 'string', description: 'Browser session ID' },
-        },
-        required: ['sessionId'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: TOOL_NAME.BROWSER_CLICK,
-      description: 'Click an element on the page by CSS selector.',
-      parameters: {
-        type: 'object',
-        properties: {
-          sessionId: { type: 'string', description: 'Browser session ID' },
-          selector: { type: 'string', description: 'CSS selector of element to click' },
-        },
-        required: ['sessionId', 'selector'],
-      },
-    },
-  },
-];
-
-// --- Evidence helpers ---
-
-const taskResultToEvidence = (result: BrowserTaskResult): Evidence[] =>
-  result.observations.map((obs) => ({
-    id: `explorer-${crypto.randomUUID().slice(0, 8)}`,
-    hypothesisId: '',
-    category: EVIDENCE_CATEGORY.DOM,
-    type: EVIDENCE_TYPE.DOM_ANOMALY,
-    description: obs,
-    data: obs,
-    timestamp: Date.now(),
-  }));
-
-// --- Build messages for LLM ---
-
-const buildMessages = (state: AgentState): OpenAI.Chat.ChatCompletionMessageParam[] => {
-  const task = state.pendingBrowserTask;
-  if (task === null) return [];
-
-  return [
-    { role: 'system', content: EXPLORER_SYSTEM_PROMPT },
-    {
-      role: 'user',
-      content: [
-        `TASK: ${task.task}`,
-        `STOP CONDITION: ${task.stopCondition}`,
-        `COLLECT: ${task.lookFor.join(', ')}`,
-        `TARGET URL: ${state.url}`,
-        state.currentSessionId !== null
-          ? `SESSION ID (use this for browser tools): ${state.currentSessionId}`
-          : 'No session yet — call browser_navigate first to get a session.',
-      ].join('\n'),
-    },
-  ];
 };
 
 // --- Execute a single tool call ---
@@ -176,12 +47,14 @@ const executeToolCall = async (
 
 // --- Main Explorer LLM loop ---
 
-const MAX_EXPLORER_ITERATIONS = 5;
+const MAX_EXPLORER_ITERATIONS = 15;
 
 const executeTask = async (state: AgentState, deps: ExplorerDeps): Promise<BrowserTaskResult> => {
+  const task = state.pendingBrowserTask;
+  if (task === null) return { observations: ['No pending task'], networkActivity: [], consoleActivity: [], screenshotPaths: [] };
+
   const observations: string[] = [];
-  const messages = buildMessages(state);
-  if (messages.length === 0) return { observations: ['No pending task'], networkActivity: [], consoleActivity: [], screenshotPaths: [] };
+  const messages = buildExplorerMessages(task.task, state.url, state.initialObservations, state.currentSessionId);
 
   for (let i = 0; i < MAX_EXPLORER_ITERATIONS; i++) {
     const response = await deps.llmClient.client.chat.completions.create({
@@ -195,7 +68,6 @@ const executeTask = async (state: AgentState, deps: ExplorerDeps): Promise<Brows
     if (message === undefined) break;
 
     if (!hasToolCalls(message)) {
-      // Model stopped calling tools — collect any text as observation
       if (message.content !== null) {
         observations.push(message.content);
       }
@@ -207,10 +79,8 @@ const executeTask = async (state: AgentState, deps: ExplorerDeps): Promise<Brows
       const result = await executeToolCall(call.name, call.args, deps);
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
 
-      // Collect observations from each tool result
       observations.push(`[${call.name}] ${resultStr.slice(0, 500)}`);
 
-      // Feed tool result back to LLM for next iteration
       messages.push({
         role: 'assistant',
         content: null,

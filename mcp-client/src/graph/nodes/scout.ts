@@ -4,13 +4,15 @@
 
 import {
   INVESTIGATION_STATUS, AGENT_NAME, TOOL_NAME,
-  type ScoutObservation, type Evidence, EVIDENCE_TYPE, EVIDENCE_CATEGORY,
+  type ScoutObservation, type Evidence,
 } from '@ai-debug/shared';
 import type { AgentState } from '#graph/state.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
 import type { SkillRegistry } from '#agent/skill-registry.js';
 import { detectFrameworks } from '#agent/framework-detector.js';
+import { consoleErrorsToEvidence } from '#graph/nodes/evidence.js';
+import { extractInteractiveElements } from '#graph/nodes/dom-parser.js';
 import {
   NavigateResponseSchema,
   ConsoleLogsResponseSchema,
@@ -56,19 +58,11 @@ const buildObservations = (
   suspiciousPatterns: [],
   domSnapshot: JSON.stringify(dom.elements).slice(0, DOM_SNAPSHOT_MAX_LENGTH),
   bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
+  interactiveElements: extractInteractiveElements(dom.elements),
   timestamp: new Date().toISOString(),
 });
 
-const buildInitialEvidence = (consoleErrors: string[]): Evidence[] =>
-  consoleErrors.map((err, i) => ({
-    id: `scout-console-${i.toString()}`,
-    hypothesisId: '',
-    category: EVIDENCE_CATEGORY.CONSOLE,
-    type: EVIDENCE_TYPE.CONSOLE_ERROR,
-    description: err,
-    data: err,
-    timestamp: Date.now(),
-  }));
+
 
 const collectObservations = async (
   url: string,
@@ -78,7 +72,7 @@ const collectObservations = async (
   deps.eventBus.emit({ type: 'investigation_phase', phase: 'scouting' });
   const { sessionId, consoleLogs, networkLogs, dom } = await collectRawData(url, deps);
   const observations = buildObservations(url, consoleLogs, networkLogs, dom);
-  const evidence = buildInitialEvidence(observations.consoleErrors);
+  const evidence = consoleErrorsToEvidence(observations.consoleErrors);
   deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.SCOUT, text: `Collected ${observations.consoleErrors.length.toString()} console errors, ${observations.networkErrors.length.toString()} network errors` });
   return { observations, sessionId, evidence };
 };

@@ -19,6 +19,7 @@ export type ScoutObservation = {
   suspiciousPatterns: string[];
   domSnapshot: string;
   bundleUrls: string[];
+  interactiveElements: string[];
   timestamp: string;
 };
 

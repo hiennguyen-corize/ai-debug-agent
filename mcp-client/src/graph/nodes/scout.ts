@@ -76,7 +76,13 @@ const collectObservations = async (
   const { sessionId, consoleLogs, networkLogs, dom } = await collectRawData(url, deps);
   const observations = buildObservations(url, consoleLogs, networkLogs, dom);
   const evidence = consoleErrorsToEvidence(observations.consoleErrors);
-  deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.SCOUT, text: `Collected ${observations.consoleErrors.length.toString()} console errors, ${observations.networkErrors.length.toString()} network errors` });
+  deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.SCOUT, text:
+    `Navigated to ${url}. Page title: "${observations.pageTitle}". ` +
+    `Found ${observations.consoleErrors.length.toString()} console errors, ` +
+    `${observations.networkErrors.length.toString()} network errors, ` +
+    `${observations.interactiveElements.length.toString()} interactive elements.` +
+    (observations.consoleErrors.length > 0 ? ` First error: ${(observations.consoleErrors[0] ?? '').slice(0, 150)}` : ''),
+  });
   return { observations, sessionId, evidence };
 };
 

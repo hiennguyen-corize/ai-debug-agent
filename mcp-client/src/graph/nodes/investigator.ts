@@ -14,7 +14,7 @@ import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
 import type { SkillRegistry } from '#agent/skill-registry.js';
 import { buildInvestigatorMessages } from '#agent/prompts.js';
-import { parseToolCalls, hasToolCalls, getTextContent } from '#agent/tool-parser.js';
+import { parseToolCalls, hasToolCalls, getTextContent, extractThinking } from '#agent/tool-parser.js';
 import { INVESTIGATOR_TOOLS } from '#graph/nodes/investigator-tools.js';
 import { ToolCallTracker } from '#graph/nodes/tool-call-tracker.js';
 
@@ -96,6 +96,8 @@ const invokeInvestigator = async (state: AgentState, deps: InvestigatorDeps): Pr
   const message = response.choices[0]?.message;
   if (message === undefined) return { status: INVESTIGATION_STATUS.ERROR };
 
+  const thinking = extractThinking(message);
+  if (thinking !== '') deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.INVESTIGATOR, text: thinking });
   const reasoning = getTextContent(message);
   if (reasoning !== '') deps.eventBus.emit({ type: 'reasoning', agent: AGENT_NAME.INVESTIGATOR, text: reasoning });
   if (response.usage) emitUsage(deps, response.usage);

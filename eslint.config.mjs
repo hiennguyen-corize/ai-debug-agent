@@ -23,7 +23,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/dist/', '**/node_modules/', '**/*.mjs', '.agent/', 'web/'],
+    ignores: ['**/dist/', '**/node_modules/', '**/*.mjs', '.agent/', 'web/', 'ai-agent-v2/'],
   },
   {
     rules: {

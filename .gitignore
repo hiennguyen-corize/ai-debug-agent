@@ -6,4 +6,4 @@ debug-reports/report-registry.json
 .env
 *.log
 .DS_Store
-__pycache__/*
+__pycache__/*ai-agent-v2/

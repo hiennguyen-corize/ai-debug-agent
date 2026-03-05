@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AgentEvent, InvestigationReport } from '#api/types'
+import { createSSE } from '#api/investigate'
 
 export type ChatMessage = {
   id: string
@@ -33,6 +34,7 @@ type InvestigationState = {
   addMessage: (investigationId: string, msg: ChatMessage) => void
   getActive: () => Investigation | undefined
   hydrate: () => Promise<void>
+  connectSSE: (investigationId: string, threadId: string) => void
 }
 
 let counter = 0
@@ -92,6 +94,29 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
     return state.investigations.find((inv) => inv.id === state.activeId)
   },
 
+  connectSSE: (investigationId: string, threadId: string) => {
+    const sse = createSSE(threadId)
+    sse.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data as string) as AgentEvent
+        get().addMessage(investigationId, {
+          id: createMessageId(),
+          role: 'agent',
+          content: '',
+          timestamp: Date.now(),
+          agent: 'agent' in event ? (event as { agent: string }).agent : undefined,
+          event,
+        })
+      } catch {
+        // ignore parse errors
+      }
+    }
+    sse.onerror = () => {
+      sse.close()
+      get().updateInvestigation(investigationId, { status: 'done' })
+    }
+  },
+
   hydrate: async () => {
     if (get().hydrated) return
     try {
@@ -131,6 +156,13 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       }
 
       set({ investigations, hydrated: true })
+
+      // Auto-reconnect SSE for running investigations
+      for (const inv of investigations) {
+        if (inv.status === 'running' && inv.threadId) {
+          get().connectSSE(inv.id, inv.threadId)
+        }
+      }
     } catch {
       set({ hydrated: true })
     }

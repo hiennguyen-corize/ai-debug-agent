@@ -5,12 +5,13 @@
 
 import { loadConfig } from '#agent/config-loader.js';
 import { createLLMClient } from '#agent/llm-client.js';
-import { createEventBus, type EventBus } from '#observability/event-bus.js';
+import { createEventBus } from '#observability/event-bus.js';
 import { createInvestigationLogger } from '#observability/investigation-logger.js';
 import { createInvestigationGraph } from '#graph/index.js';
 import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent, type InvestigationMode } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
 import { createPromptUser } from '#agent/prompt-user-factory.js';
+import { createPlaywrightBridge } from '#agent/playwright-bridge.js';
 
 export type InvestigationDeps = {
   mcpCall: McpCall;
@@ -29,22 +30,6 @@ const resolvePromptUser = (
     callbackUrl: deps.callbackUrl,
   });
 
-const buildGraph = async (
-  config: Awaited<ReturnType<typeof loadConfig>>,
-  eventBus: EventBus,
-  deps: InvestigationDeps,
-  mode: InvestigationMode,
-): ReturnType<typeof createInvestigationGraph> =>
-  createInvestigationGraph({
-    investigatorLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
-    explorerLLM: createLLMClient(AGENT_NAME.EXPLORER, config),
-    scoutLLM: createLLMClient(AGENT_NAME.SCOUT, config),
-    synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
-    eventBus,
-    mcpCall: deps.mcpCall,
-    promptUser: resolvePromptUser(deps, mode),
-  });
-
 export const runInvestigationPipeline = async (
   request: InvestigationRequest,
   deps: InvestigationDeps,
@@ -61,8 +46,22 @@ export const runInvestigationPipeline = async (
     config.output.reportsDir,
   );
 
+  const headless = config.browser.headless;
+  const playwrightBridge = await createPlaywrightBridge(headless);
+
   try {
-    const graph = await buildGraph(config, eventBus, deps, request.mode);
+    const graph = createInvestigationGraph({
+      plannerLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
+      executorLLM: createLLMClient(AGENT_NAME.EXPLORER, config),
+      scoutLLM: createLLMClient(AGENT_NAME.SCOUT, config),
+      synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
+      eventBus,
+      mcpCall: deps.mcpCall,
+      playwrightCall: playwrightBridge.call,
+      playwrightTools: playwrightBridge.tools,
+      promptUser: resolvePromptUser(deps, request.mode),
+    });
+
     const result = await graph.invoke({
       url: request.url,
       hint: request.hint ?? null,
@@ -71,6 +70,7 @@ export const runInvestigationPipeline = async (
 
     return result.finalReport ?? null;
   } finally {
+    await playwrightBridge.close();
     await logger.writeFooter();
     logger.unsubscribe();
   }

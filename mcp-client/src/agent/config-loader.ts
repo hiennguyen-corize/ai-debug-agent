@@ -14,6 +14,7 @@ const LLMRoleSchema = z.object({
   baseURL: z.string(),
   model: z.string(),
   apiKey: z.string(),
+  supportsVision: z.boolean().default(false),
 });
 
 export type LLMRoleConfig = z.infer<typeof LLMRoleSchema>;

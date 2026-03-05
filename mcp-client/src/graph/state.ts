@@ -12,7 +12,6 @@ import type {
   UserClarification,
   CodeAnalysis,
   InvestigationReport,
-  BrowserTask,
   BrowserTaskResult,
 } from '@ai-debug/shared';
 
@@ -36,7 +35,18 @@ export const AgentStateAnnotation = Annotation.Root({
   }),
   codeAnalysis: Annotation<CodeAnalysis | null>,
 
-  pendingBrowserTask: Annotation<BrowserTask | null>,
+  // Planner → Executor communication
+  investigationBrief: Annotation<string | null>,
+  plannerRound: Annotation<number>({
+    reducer: (prev, next) => next,
+    default: () => 0,
+  }),
+  executorResults: Annotation<string[]>({
+    reducer: (prev, next) => next,
+    default: () => [],
+  }),
+
+  // Legacy — kept for compatibility with BrowserTaskResult type
   browserTaskResults: Annotation<BrowserTaskResult[]>({
     reducer: (prev, next) => next,
     default: () => [],
@@ -52,10 +62,6 @@ export const AgentStateAnnotation = Annotation.Root({
     default: () => [],
   }),
 
-  iterationCount: Annotation<number>({
-    reducer: (prev, next) => next,
-    default: () => 0,
-  }),
   maxIterations: Annotation<number>({
     reducer: (prev, next) => next,
     default: () => 30,

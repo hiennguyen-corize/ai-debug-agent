@@ -27,6 +27,7 @@ export type LLMClient = {
   client: OpenAI;
   model: string;
   provider: string;
+  supportsVision: boolean;
 };
 
 export const createLLMClient = (role: AgentName, config: AppConfig): LLMClient => {
@@ -35,5 +36,5 @@ export const createLLMClient = (role: AgentName, config: AppConfig): LLMClient =
     apiKey: roleConfig.apiKey || 'not-needed',
     baseURL: roleConfig.baseURL,
   });
-  return { client, model: roleConfig.model, provider: roleConfig.provider };
+  return { client, model: roleConfig.model, provider: roleConfig.provider, supportsVision: roleConfig.supportsVision };
 };

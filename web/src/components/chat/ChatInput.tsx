@@ -6,8 +6,7 @@ import {
   createMessageId,
   type Investigation,
 } from '#stores/investigation-store'
-import { startInvestigation, createSSE } from '#api/investigate'
-import type { AgentEvent } from '#api/types'
+import { startInvestigation } from '#api/investigate'
 import { Button } from '#components/ui/Button'
 
 
@@ -16,7 +15,7 @@ export function ChatInput() {
   const [hint, setHint] = useState('')
   const [loading, setLoading] = useState(false)
   const { mode, setMode } = useSettingsStore()
-  const { addInvestigation, updateInvestigation, addMessage } = useInvestigationStore()
+  const { addInvestigation, updateInvestigation, addMessage, connectSSE } = useInvestigationStore()
 
   const handleSubmit = useCallback(async () => {
     const trimmedUrl = url.trim()
@@ -58,28 +57,8 @@ export function ChatInput() {
         timestamp: Date.now(),
       })
 
-      const sse = createSSE(result.threadId)
-      sse.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data) as AgentEvent
-          addMessage(invId, {
-            id: createMessageId(),
-            role: 'agent',
-            content: '',
-            timestamp: Date.now(),
-            agent: 'agent' in event ? event.agent : undefined,
-            event,
-          })
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      sse.onerror = () => {
-        sse.close()
-        updateInvestigation(invId, { status: 'done' })
-        setLoading(false)
-      }
+      connectSSE(invId, result.threadId)
+      setLoading(false)
     } catch (err) {
       updateInvestigation(invId, { status: 'error', error: String(err) })
       addMessage(invId, {
@@ -90,7 +69,7 @@ export function ChatInput() {
       })
       setLoading(false)
     }
-  }, [url, hint, mode, loading, addInvestigation, updateInvestigation, addMessage])
+  }, [url, hint, mode, loading, addInvestigation, updateInvestigation, addMessage, connectSSE])
 
   return (
     <div className="border-t border-border-subtle glass px-4 py-3">

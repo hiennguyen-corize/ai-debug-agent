@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { useInvestigationStore } from '#stores/investigation-store'
+import type { ChatMessage as ChatMessageType } from '#stores/investigation-store'
 import { ChatMessage } from './ChatMessage'
 import { SkeletonCard } from '#components/ui/Skeleton'
 import { Bug, Sparkles, Search, Shield } from 'lucide-react'
@@ -35,12 +36,82 @@ function EmptyState() {
   )
 }
 
+// --- Group consecutive messages from the same agent ---
+
+type MessageGroup = {
+  agent: string | undefined
+  messages: ChatMessageType[]
+}
+
+function groupMessages(messages: ChatMessageType[]): MessageGroup[] {
+  const groups: MessageGroup[] = []
+  let current: MessageGroup | null = null
+
+  for (const msg of messages) {
+    if (current !== null && current.agent === msg.agent) {
+      current.messages.push(msg)
+    } else {
+      current = { agent: msg.agent, messages: [msg] }
+      groups.push(current)
+    }
+  }
+
+  return groups
+}
+
+// --- Agent label display ---
+
+const agentDisplayNames: Record<string, string> = {
+  scout: '🔍 Scout',
+  investigator: '🧠 Planner',
+  explorer: '⚡ Executor',
+  synthesis: '📋 Synthesis',
+}
+
+const agentColors: Record<string, string> = {
+  scout: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30',
+  investigator: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/30',
+  explorer: 'from-amber-500/20 to-amber-600/10 border-amber-500/30',
+  synthesis: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
+}
+
+const agentTextColors: Record<string, string> = {
+  scout: 'text-emerald-400',
+  investigator: 'text-indigo-400',
+  explorer: 'text-amber-400',
+  synthesis: 'text-purple-400',
+}
+
+function AgentGroupHeader({ agent, count }: { agent: string; count: number }) {
+  const displayName = agentDisplayNames[agent] ?? agent
+  const colorClass = agentColors[agent] ?? 'from-gray-500/20 to-gray-600/10 border-gray-500/30'
+  const textColor = agentTextColors[agent] ?? 'text-text-muted'
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-2 bg-gradient-to-r ${colorClass} border-l-2 rounded-r-lg`}>
+      <span className={`text-xs font-bold uppercase tracking-widest font-mono ${textColor}`}>
+        {displayName}
+      </span>
+      {count > 1 && (
+        <span className="text-[10px] text-text-muted/60 font-mono">
+          {count} steps
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function ChatPanel() {
   const active = useInvestigationStore((s) => {
     const inv = s.investigations.find((i) => i.id === s.activeId)
     return inv ?? null
   })
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const groups = useMemo(
+    () => (active ? groupMessages(active.messages) : []),
+    [active?.messages.length],
+  )
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -50,9 +121,18 @@ export function ChatPanel() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="divide-y divide-border-subtle/20">
-        {active.messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+      <div className="space-y-1 py-2">
+        {groups.map((group, gi) => (
+          <div key={gi} className="space-y-0.5">
+            {group.agent && (
+              <AgentGroupHeader agent={group.agent} count={group.messages.length} />
+            )}
+            <div className="divide-y divide-border-subtle/10">
+              {group.messages.map((msg) => (
+                <ChatMessage key={msg.id} message={msg} hideAgent />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 

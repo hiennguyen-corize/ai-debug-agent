@@ -2,7 +2,7 @@
  * Tool call deduplication tracker — prevents Investigator from repeating identical calls.
  */
 
-const MAX_DUPLICATE_CALLS = 3;
+const MAX_DUPLICATE_CALLS = 2;
 
 export class ToolCallTracker {
   private readonly cache = new Map<string, { result: unknown; count: number }>();

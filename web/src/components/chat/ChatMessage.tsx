@@ -11,13 +11,6 @@ import { SourceMapResolvedEvent, SourceMapFailedEvent } from './events/SourceMap
 import { QuestionEvent } from './events/QuestionEvent'
 import { LlmUsageEvent } from './events/LlmUsageEvent'
 
-const agentColors: Record<string, string> = {
-  scout: 'text-emerald-400',
-  investigator: 'text-indigo-400',
-  explorer: 'text-amber-400',
-  synthesis: 'text-purple-400',
-}
-
 function EventRouter({ event }: { event: ChatMessageType['event'] }) {
   if (!event) return null
 
@@ -49,21 +42,23 @@ function EventRouter({ event }: { event: ChatMessageType['event'] }) {
   }
 }
 
-export function ChatMessage({ message }: { message: ChatMessageType }) {
+type ChatMessageProps = {
+  message: ChatMessageType
+  hideAgent?: boolean
+}
+
+export function ChatMessage({ message, hideAgent }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
 
   return (
     <div className={cn(
-      'animate-fade-in px-4 py-3',
-      isUser && 'bg-bg-secondary/50',
+      'animate-fade-in px-4 py-2',
+      isUser && 'bg-bg-secondary/50 py-3',
     )}>
       <div className="max-w-[800px] mx-auto">
-        {message.agent && (
-          <span className={cn(
-            'text-xs font-semibold uppercase tracking-wider mb-1.5 block font-mono',
-            agentColors[message.agent] ?? 'text-text-muted',
-          )}>
+        {!hideAgent && message.agent && (
+          <span className="text-xs font-semibold uppercase tracking-wider mb-1.5 block font-mono text-text-muted">
             {message.agent}
           </span>
         )}

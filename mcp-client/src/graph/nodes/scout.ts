@@ -52,22 +52,20 @@ const buildObservations = (
 ): ScoutObservation => {
   const errorLogs = consoleLogs.logs.filter((l) => l.type === 'error').map((l) => l.text);
   return {
-  url,
-  pageTitle: dom.title,
-  consoleErrors: errorLogs,
-  parsedErrors: errorLogs.map(parseStackTrace),
-  networkErrors: networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
-    url: l.url, method: l.method, status: l.status, statusText: '',
-  })),
-  suspiciousPatterns: [],
-  domSnapshot: JSON.stringify(dom.elements).slice(0, DOM_SNAPSHOT_MAX_LENGTH),
-  bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
-  interactiveElements: extractInteractiveElements(dom.elements),
-  timestamp: new Date().toISOString(),
+    url,
+    pageTitle: dom.title,
+    consoleErrors: errorLogs,
+    parsedErrors: errorLogs.map(parseStackTrace),
+    networkErrors: networkLogs.logs.filter((l) => l.status >= 400).map((l) => ({
+      url: l.url, method: l.method, status: l.status, statusText: '',
+    })),
+    suspiciousPatterns: [],
+    domSnapshot: JSON.stringify(dom.elements).slice(0, DOM_SNAPSHOT_MAX_LENGTH),
+    bundleUrls: networkLogs.logs.filter((l) => l.url.endsWith('.js')).map((l) => l.url),
+    interactiveElements: extractInteractiveElements(dom.elements),
+    timestamp: new Date().toISOString(),
+  };
 };
-};
-
-
 
 const collectObservations = async (
   url: string,

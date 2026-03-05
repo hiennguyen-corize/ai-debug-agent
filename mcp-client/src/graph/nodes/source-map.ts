@@ -7,7 +7,6 @@
 
 import {
   INVESTIGATION_STATUS,
-
   TOOL_NAME,
   type CodeAnalysis,
   type ParsedError,

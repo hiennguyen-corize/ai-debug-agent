@@ -57,32 +57,22 @@ const extractFunctionBody = (content: string, targetLine: number): string => {
   return lines.slice(start, end + 1).join('\n');
 };
 
-/**
- * Fallback: extract ±SURROUNDING_LINES around error line.
- */
-const extractSurroundingLines = (
-  consumer: SourceMapConsumer,
-  file: string,
-  line: number,
-): string => {
-  const content = consumer.sourceContentFor(file);
-  if (content === null) return '';
-  const lines = content.split('\n');
-  const start = Math.max(0, line - SURROUNDING_LINES - 1);
-  const end = Math.min(lines.length, line + SURROUNDING_LINES);
-  return lines.slice(start, end).join('\n');
-};
-
 const extractCode = (
   consumer: SourceMapConsumer,
   file: string,
   line: number,
 ): string => {
   const content = consumer.sourceContentFor(file);
-  if (content === null) return extractSurroundingLines(consumer, file, line);
+  if (content === null) return '';
 
-  const functionBody = extractFunctionBody(content, line);
-  return functionBody !== '' ? functionBody : extractSurroundingLines(consumer, file, line);
+  const body = extractFunctionBody(content, line);
+  if (body !== '') return body;
+
+  // Final fallback: ±SURROUNDING_LINES
+  const lines = content.split('\n');
+  const start = Math.max(0, line - SURROUNDING_LINES - 1);
+  const end = Math.min(lines.length, line + SURROUNDING_LINES);
+  return lines.slice(start, end).join('\n');
 };
 
 export const resolveLocation = async (

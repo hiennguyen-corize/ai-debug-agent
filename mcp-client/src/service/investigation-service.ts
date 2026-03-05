@@ -8,8 +8,6 @@ import { createLLMClient } from '#agent/llm-client.js';
 import { createEventBus, type EventBus } from '#observability/event-bus.js';
 import { createInvestigationLogger } from '#observability/investigation-logger.js';
 import { createInvestigationGraph } from '#graph/index.js';
-import { saveReport } from '#reporter/report.js';
-import { addToRegistry, isDuplicate } from '#reporter/registry.js';
 import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent, type InvestigationMode } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
 import { createPromptUser } from '#agent/prompt-user-factory.js';
@@ -47,16 +45,6 @@ const buildGraph = async (
     promptUser: resolvePromptUser(deps, mode),
   });
 
-const handleReport = async (
-  report: InvestigationReport | null,
-  reportsDir: string,
-): Promise<void> => {
-  if (report === null) return;
-  if (await isDuplicate(report)) return;
-  const path = await saveReport(report, reportsDir);
-  await addToRegistry(report, path, reportsDir);
-};
-
 export const runInvestigationPipeline = async (
   request: InvestigationRequest,
   deps: InvestigationDeps,
@@ -81,7 +69,6 @@ export const runInvestigationPipeline = async (
       investigationMode: request.mode,
     }, { recursionLimit: 100 });
 
-    await handleReport(result.finalReport, config.output.reportsDir);
     return result.finalReport ?? null;
   } finally {
     await logger.writeFooter();

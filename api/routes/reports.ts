@@ -1,27 +1,26 @@
 /**
- * Routes: /reports — list investigation reports.
+ * Routes: /reports — list investigation reports from DB.
  */
 
 import { Hono } from 'hono';
-import { REPORT_SEVERITY, type ReportSeverity } from '@ai-debug/shared';
+import { getDb } from '#db/client.js';
+import { threads } from '#db/schema.js';
+import { isNotNull } from 'drizzle-orm';
 import { ok } from '#lib/response.js';
-
-const VALID_SEVERITIES = new Set<string>(Object.values(REPORT_SEVERITY));
-
-const parseSeverity = (raw: string | undefined): ReportSeverity | undefined =>
-  raw !== undefined && VALID_SEVERITIES.has(raw) ? (raw as ReportSeverity) : undefined;
 
 export const reportsRoute = new Hono();
 
-reportsRoute.get('/', async (c) => {
-  const { listReports } = await import('@ai-debug/mcp-client/reporter/registry');
-  const severity = parseSeverity(c.req.query('severity'));
-  const url = c.req.query('url');
+reportsRoute.get('/', (c) => {
+  const db = getDb();
+  const rows = db.select().from(threads).where(isNotNull(threads.report)).all();
 
-  const filters: { severity?: ReportSeverity; url?: string } = {};
-  if (severity !== undefined) filters.severity = severity;
-  if (url !== undefined) filters.url = url;
+  const reports = rows.map((t) => ({
+    threadId: t.id,
+    url: t.url,
+    report: t.report,
+    status: t.status,
+    createdAt: t.createdAt.getTime(),
+  }));
 
-  const reports = await listReports(filters);
   return ok(c, reports);
 });

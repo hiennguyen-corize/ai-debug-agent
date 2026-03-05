@@ -1,22 +1,28 @@
 {
     "llm": {
+        "default": {
+            "provider": "ollama-cloud",
+            "model": "qwen3-coder",
+            "baseURL": "https://ollama.com/v1",
+            "apiKey": "$OLLAMA_API_KEY"
+        },
         "investigator": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-            "baseURL": "https://api.openai.com/v1",
-            "apiKey": "$OPENAI_API_KEY"
+            "provider": "ollama-cloud",
+            "model": "qwen3-coder",
+            "baseURL": "https://ollama.com/v1",
+            "apiKey": "$OLLAMA_API_KEY"
         },
         "explorer": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-            "baseURL": "https://api.openai.com/v1",
-            "apiKey": "$OPENAI_API_KEY"
+            "provider": "ollama-cloud",
+            "model": "qwen3-coder",
+            "baseURL": "https://ollama.com/v1",
+            "apiKey": "$OLLAMA_API_KEY"
         },
         "scout": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-            "baseURL": "https://api.openai.com/v1",
-            "apiKey": "$OPENAI_API_KEY"
+            "provider": "ollama-cloud",
+            "model": "qwen3",
+            "baseURL": "https://ollama.com/v1",
+            "apiKey": "$OLLAMA_API_KEY"
         }
     },
     "agent": {

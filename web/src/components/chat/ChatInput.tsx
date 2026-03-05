@@ -93,47 +93,54 @@ export function ChatInput() {
   }, [url, hint, mode, loading, addInvestigation, updateInvestigation, addMessage])
 
   return (
-    <div className="border-t border-border-subtle glass p-4">
-      <div className="max-w-[800px] mx-auto space-y-3">
-        <div className="flex gap-3 items-center">
-          <div className="flex-1 relative">
-            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+    <div className="border-t border-border-subtle glass px-4 py-3">
+      <div className="max-w-[800px] mx-auto">
+        {/* Single card container */}
+        <div className="rounded-xl border border-border-subtle bg-bg-secondary/50 overflow-hidden transition-all duration-200 focus-within:border-accent/40 focus-within:ring-1 focus-within:ring-accent/20">
+          {/* URL row */}
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <Globe className="w-4 h-4 text-text-muted shrink-0" />
             <input
               type="url"
               placeholder="https://example.com/page-with-bug"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-              className="w-full glass-input rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all duration-200"
+              className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
             />
           </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={!url.trim() || loading}
-            size="md"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Investigate
-          </Button>
-        </div>
-        <div className="flex gap-3 items-center">
-          <input
-            type="text"
-            placeholder="Hint: describe the bug (optional)"
-            value={hint}
-            onChange={(e) => setHint(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-            className="flex-1 glass-input rounded-lg px-4 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all duration-200"
-          />
-          <button
-            onClick={() => setMode(mode === 'autonomous' ? 'interactive' : 'autonomous')}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border cursor-pointer transition-colors duration-200 bg-accent/15 text-accent border-accent/20 hover:bg-accent/25"
-            title={`Click to switch to ${mode === 'autonomous' ? 'interactive' : 'autonomous'} mode`}
-          >
-            {mode === 'autonomous' ? <Zap className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-            {mode}
-          </button>
-          <span className="text-xs text-text-muted hidden sm:inline">⏎ Enter</span>
+
+          {/* Divider + bottom toolbar */}
+          <div className="flex items-center gap-2 px-3 py-2 border-t border-border-subtle/50 bg-bg-tertiary/30">
+            <input
+              type="text"
+              placeholder="Describe the bug (optional)"
+              value={hint}
+              onChange={(e) => setHint(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
+              className="flex-1 bg-transparent text-xs text-text-secondary placeholder-text-muted/60 focus:outline-none"
+            />
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setMode(mode === 'autonomous' ? 'interactive' : 'autonomous')}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono font-medium border cursor-pointer transition-colors duration-200 bg-accent/10 text-accent border-accent/15 hover:bg-accent/20"
+                title={`Switch to ${mode === 'autonomous' ? 'interactive' : 'autonomous'} mode`}
+              >
+                {mode === 'autonomous' ? <Zap className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                {mode}
+              </button>
+
+              <Button
+                onClick={handleSubmit}
+                disabled={!url.trim() || loading}
+                size="sm"
+              >
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                Investigate
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

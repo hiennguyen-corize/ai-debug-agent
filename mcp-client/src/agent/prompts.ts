@@ -70,7 +70,13 @@ COMMON BUG-TRIGGERING PATTERNS:
 - NEVER call the same tool with the same arguments twice
 - After fetch_source_map → MUST call resolve_error_location next
 - After 3 tool calls without new info → call finish_investigation
-- dispatch_browser_task: be SPECIFIC — include URLs, button text, actions, and what to collect` as const;
+- dispatch_browser_task: be SPECIFIC — include URLs, button text, actions, and what to collect
+
+## LANGUAGE RULE
+ALWAYS reason and think in English internally for accuracy.
+However, your FINAL output (report, explanations) MUST be in the SAME language as the user's hint/input.
+For example, if the hint is in Vietnamese, write your final report in Vietnamese.
+Code identifiers, file paths, and technical terms stay in English.` as const;
 
 export const SYNTHESIS_SYSTEM_PROMPT = `You are Synthesis — produce the final investigation report.
 
@@ -84,6 +90,11 @@ OUTPUT: A structured InvestigationReport containing:
 5. Reproduction steps — from evidence
 6. Severity assessment (critical/high/medium/low)
 7. Assumptions made during investigation
+
+LANGUAGE RULE: ALWAYS reason internally in English for accuracy.
+However, write the FINAL report in the SAME language as the user's hint/input.
+If the hint is in Vietnamese, the entire report must be in Vietnamese.
+Code identifiers, file paths, and technical terms stay in English.
 
 Be concise, technical, and actionable.` as const;
 

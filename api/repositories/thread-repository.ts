@@ -1,45 +1,88 @@
 /**
- * ThreadRepository — in-memory store for investigation threads.
- * Swappable to persistent storage later.
+ * ThreadRepository — data access layer using Drizzle ORM.
  */
 
-import type { InvestigationReport, AgentEvent, InvestigationMode } from '@ai-debug/shared';
+import { eq, desc } from 'drizzle-orm';
+import { threads, events } from '#db/schema.js';
+import type { AppDatabase } from '#db/client.js';
+import type { InvestigationReport, InvestigationMode, AgentEvent } from '@ai-debug/shared';
 
-export type InvestigationThread = {
+const THREAD_LIST_LIMIT = 50;
+
+export type ThreadRecord = {
   id: string;
   status: 'running' | 'done' | 'error';
-  request: { url: string; hint?: string; mode: InvestigationMode };
+  url: string;
+  hint: string;
+  mode: InvestigationMode;
   report: InvestigationReport | null;
   error: string | null;
-  subscribers: ((event: AgentEvent) => void)[];
+  createdAt: Date;
 };
 
-export type ThreadRepository = {
-  create: (request: InvestigationThread['request']) => InvestigationThread;
-  get: (threadId: string) => InvestigationThread | undefined;
-  update: (threadId: string, patch: Partial<InvestigationThread>) => void;
+type CreateThreadInput = {
+  id: string;
+  url: string;
+  hint: string;
+  mode: InvestigationMode;
 };
 
-export const createInMemoryThreadRepository = (): ThreadRepository => {
-  const threads = new Map<string, InvestigationThread>();
+const parseReport = (raw: string | null): InvestigationReport | null =>
+  raw !== null ? (JSON.parse(raw) as InvestigationReport) : null;
 
-  return {
-    create: (request) => {
-      const thread: InvestigationThread = {
-        id: `debug-${Date.now().toString()}`,
-        status: 'running',
-        request,
-        report: null,
-        error: null,
-        subscribers: [],
-      };
-      threads.set(thread.id, thread);
-      return thread;
-    },
-    get: (threadId) => threads.get(threadId),
-    update: (threadId, patch) => {
-      const thread = threads.get(threadId);
-      if (thread !== undefined) Object.assign(thread, patch);
-    },
-  };
-};
+const toRecord = (row: typeof threads.$inferSelect): ThreadRecord => ({
+  id: row.id,
+  status: row.status,
+  url: row.url,
+  hint: row.hint ?? '',
+  mode: row.mode,
+  report: parseReport(row.report),
+  error: row.error,
+  createdAt: row.createdAt,
+});
+
+export const createThreadRepository = (db: AppDatabase) => ({
+  create(input: CreateThreadInput): ThreadRecord {
+    db.insert(threads).values({
+      id: input.id,
+      url: input.url,
+      hint: input.hint,
+      mode: input.mode,
+    }).run();
+
+    return this.findById(input.id)!;
+  },
+
+  findById(threadId: string): ThreadRecord | undefined {
+    const row = db.select().from(threads).where(eq(threads.id, threadId)).get();
+    return row !== undefined ? toRecord(row) : undefined;
+  },
+
+  findAll(): ThreadRecord[] {
+    const rows = db.select().from(threads).orderBy(desc(threads.createdAt)).limit(THREAD_LIST_LIMIT).all();
+    return rows.map(toRecord);
+  },
+
+  updateStatus(threadId: string, status: ThreadRecord['status']): void {
+    db.update(threads).set({ status }).where(eq(threads.id, threadId)).run();
+  },
+
+  updateReport(threadId: string, report: InvestigationReport): void {
+    db.update(threads).set({ report: JSON.stringify(report), status: 'done' }).where(eq(threads.id, threadId)).run();
+  },
+
+  updateError(threadId: string, error: string): void {
+    db.update(threads).set({ error, status: 'error' }).where(eq(threads.id, threadId)).run();
+  },
+
+  insertEvent(threadId: string, event: AgentEvent): void {
+    db.insert(events).values({ threadId, data: JSON.stringify(event) }).run();
+  },
+
+  findEventsByThreadId(threadId: string): AgentEvent[] {
+    const rows = db.select({ data: events.data }).from(events).where(eq(events.threadId, threadId)).all();
+    return rows.map((r) => JSON.parse(r.data) as AgentEvent);
+  },
+});
+
+export type ThreadRepository = ReturnType<typeof createThreadRepository>;

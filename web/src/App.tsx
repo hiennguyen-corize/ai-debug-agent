@@ -1,10 +1,13 @@
+import { useEffect } from 'react'
 import { Sidebar } from '#components/sidebar/Sidebar'
 import { Header } from '#components/layout/Header'
 import { ChatPanel } from '#components/chat/ChatPanel'
 import { ChatInput } from '#components/chat/ChatInput'
 import { Toaster } from 'sonner'
+import { useInvestigationStore } from '#stores/investigation-store'
 
 export default function App() {
+  useEffect(() => { void useInvestigationStore.getState().hydrate() }, [])
   return (
     <div className="flex h-screen overflow-hidden bg-bg-primary">
       <Sidebar />

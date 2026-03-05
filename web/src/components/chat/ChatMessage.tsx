@@ -1,10 +1,6 @@
-import { useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { ChatMessage as ChatMessageType } from '#stores/investigation-store'
 import { cn } from '#lib/utils'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 import { PhaseEvent } from './events/PhaseEvent'
 import { ReasoningEvent } from './events/ReasoningEvent'
@@ -13,6 +9,7 @@ import { HypothesisCreatedEvent, HypothesisUpdatedEvent } from './events/Hypothe
 import { ErrorEvent } from './events/ErrorEvent'
 import { SourceMapResolvedEvent, SourceMapFailedEvent } from './events/SourceMapEvent'
 import { QuestionEvent } from './events/QuestionEvent'
+import { LlmUsageEvent } from './events/LlmUsageEvent'
 
 const agentColors: Record<string, string> = {
   scout: 'text-emerald-400',
@@ -45,41 +42,16 @@ function EventRouter({ event }: { event: ChatMessageType['event'] }) {
       return <SourceMapFailedEvent event={event} />
     case 'user_question':
       return <QuestionEvent event={event} />
+    case 'llm_usage':
+      return <LlmUsageEvent event={event} />
     default:
-      return <p className="text-sm text-text-muted font-mono">{JSON.stringify(event)}</p>
+      return null
   }
 }
 
 export function ChatMessage({ message }: { message: ChatMessageType }) {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
-
-  const markdownComponents = useMemo(() => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    code({ className, children, ...props }: any) {
-      const match = /language-(\w+)/.exec(className || '')
-      return match ? (
-        <SyntaxHighlighter
-          style={oneDark}
-          language={match[1]}
-          PreTag="div"
-          customStyle={{
-            borderRadius: '8px',
-            fontSize: '13px',
-            margin: '8px 0',
-            fontFamily: 'var(--font-mono)',
-            background: 'rgba(255,255,255,0.03)',
-          }}
-        >
-          {String(children).replace(/\n$/, '')}
-        </SyntaxHighlighter>
-      ) : (
-        <code className="bg-bg-tertiary/60 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-          {children}
-        </code>
-      )
-    },
-  }), [])
 
   return (
     <div className={cn(
@@ -103,9 +75,7 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
             'text-sm leading-relaxed',
             isSystem && 'text-text-secondary italic',
           )}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {message.content}
-            </ReactMarkdown>
+            <MarkdownRenderer content={message.content} />
           </div>
         )}
       </div>

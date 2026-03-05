@@ -1,11 +1,10 @@
 /**
- * Routes: /reports
- *
- * GET / — list investigation reports, filterable by severity and url
+ * Routes: /reports — list investigation reports.
  */
 
 import { Hono } from 'hono';
 import { REPORT_SEVERITY, type ReportSeverity } from '@ai-debug/shared';
+import { ok } from '#lib/response.js';
 
 const VALID_SEVERITIES = new Set<string>(Object.values(REPORT_SEVERITY));
 
@@ -24,6 +23,5 @@ reportsRoute.get('/', async (c) => {
   if (url !== undefined) filters.url = url;
 
   const reports = await listReports(filters);
-
-  return c.json(reports);
+  return ok(c, reports);
 });

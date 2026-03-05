@@ -54,7 +54,8 @@ export type AgentEvent =
   | { type: 'sourcemap_failed'; bundleUrl: string; reason: string }
   | { type: 'user_question'; question: string; context: string }
   | { type: 'user_answered'; question: string }
-  | { type: 'investigation_phase'; phase: InvestigationPhase };
+  | { type: 'investigation_phase'; phase: InvestigationPhase }
+  | { type: 'screenshot_captured'; agent: AgentName; data: string };
 
 export const STEP_TYPE = {
   THINKING: 'thinking',

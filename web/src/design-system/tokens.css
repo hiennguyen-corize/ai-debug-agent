@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════════
+   Precision Data UI — Design Tokens
+   Philosophy: Tufte (data-ink) + Swiss (grid) + Rams (functional)
+   Palette: High-contrast dark (Linear/Vercel-inspired)
+   ═══════════════════════════════════════════════ */
+
+@theme {
+  /* ─── Palette: High-contrast dark ─── */
+  --color-bg-primary:     #0A0A0B;
+  --color-bg-secondary:   #111113;
+  --color-bg-tertiary:    #1A1A1E;
+  --color-bg-hover:       #232328;
+  --color-bg-inverse:     #FAFAFA;
+
+  --color-border:         #27272A;
+  --color-border-subtle:  #1E1E22;
+
+  --color-text-primary:   #FAFAFA;
+  --color-text-secondary: #A1A1AA;
+  --color-text-muted:     #52525B;
+
+  /* ─── Functional Color (each = one meaning) ─── */
+  --color-scout:    #2DD4BF;
+  --color-planner:  #818CF8;
+  --color-executor: #FCD34D;
+  --color-report:   #C084FC;
+  --color-success:  #4ADE80;
+  --color-error:    #F87171;
+  --color-warning:  #FBBF24;
+  --color-info:     #60A5FA;
+
+  /* Legacy aliases */
+  --color-accent:       #818CF8;
+  --color-accent-hover: #6366F1;
+  --color-cta:          #4ADE80;
+  --color-cta-hover:    #22C55E;
+
+  /* ─── Typography: Swiss precision ─── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+
+  /* ─── Shadows: Subtle depth on dark ─── */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg:   0 4px 16px rgba(0, 0, 0, 0.6);
+
+  /* ─── Spacing: 8px grid (Brockmann) ─── */
+  --spacing-0:  0px;
+  --spacing-1:  4px;
+  --spacing-2:  8px;
+  --spacing-3:  12px;
+  --spacing-4:  16px;
+  --spacing-5:  20px;
+  --spacing-6:  24px;
+  --spacing-8:  32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* ─── Radius: Subtle, not bubbly ─── */
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   6px;
+  --radius-full: 9999px;
+}

@@ -1,15 +1,15 @@
 import { useEffect } from 'react'
-import { Sidebar } from '#components/sidebar/Sidebar'
-import { Header } from '#components/layout/Header'
-import { ChatPanel } from '#components/chat/ChatPanel'
-import { ChatInput } from '#components/chat/ChatInput'
+import { Sidebar } from '#components/features/sidebar/Sidebar'
+import { Header } from '#components/features/layout/Header'
+import { ChatPanel } from '#components/features/chat/ChatPanel'
+import { ChatInput } from '#components/features/chat/ChatInput'
 import { Toaster } from 'sonner'
 import { useInvestigationStore } from '#stores/investigation-store'
 
 export default function App() {
   useEffect(() => { void useInvestigationStore.getState().hydrate() }, [])
   return (
-    <div className="flex h-screen overflow-hidden bg-bg-primary">
+    <div className="flex h-screen overflow-hidden bg-bg-primary text-text-primary">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
@@ -21,10 +21,9 @@ export default function App() {
         position="top-right"
         toastOptions={{
           style: {
-            background: 'rgba(30, 41, 59, 0.9)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: '#F8FAFC',
+            background: '#111113',
+            border: '1px solid #27272A',
+            color: '#FAFAFA',
           },
         }}
       />

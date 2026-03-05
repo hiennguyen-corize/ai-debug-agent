@@ -24,6 +24,11 @@ DO NOT:
 - Draw conclusions
 - Perform complex interactions
 
+## LANGUAGE RULE
+ALWAYS reason internally in English.
+Write your OUTPUT and observations in the SAME language as the user's hint.
+Technical terms (error messages, code identifiers) stay in English.
+
 OUTPUT: Return a structured ScoutObservation with all collected data.` as const;
 
 // --- Planner ---
@@ -150,6 +155,11 @@ When testing different inputs/categories:
 - Console error found → collect error text + screenshot → respond with findings
 - Page crashes/blank → screenshot → respond
 - After 8+ actions with no new evidence → respond with what you found
+
+## LANGUAGE RULE
+ALWAYS reason internally in English.
+Write your findings and observations in the SAME language as the user's hint.
+Technical terms (error messages, code identifiers, tool names) stay in English.
 
 ## CRITICAL
 - Use ONLY the provided browser tools. Do NOT invent tool names.

@@ -55,6 +55,8 @@ const formatStep = (event: AgentEvent): string => {
       return `**[${time}] ❓ Agent asks user:** ${event.question}\n`;
     case 'user_answered':
       return `**[${time}] 💬 User answered:** ${event.question}\n`;
+    case 'screenshot_captured':
+      return `**[${time}] 📸 Screenshot captured**\n`;
   }
 };
 

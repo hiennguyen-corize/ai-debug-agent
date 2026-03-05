@@ -121,6 +121,15 @@ const executeLoop = async (state: AgentState, deps: ExecutorDeps): Promise<Brows
       const resultStr = await executeToolCall(name, args, deps);
       observations.push(`[${name}] ${resultStr.slice(0, 500)}`);
 
+      // Emit screenshot for inline display
+      if (name === 'browser_take_screenshot' || name === 'browser_screenshot') {
+        // Result from playwright/mcp contains base64 image data
+        const base64Match = /data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/.exec(resultStr);
+        if (base64Match !== null) {
+          deps.eventBus.emit({ type: 'screenshot_captured', agent: AGENT_NAME.EXPLORER, data: base64Match[0] });
+        }
+      }
+
       // Extract console errors
       if (name === 'browser_console_messages' && resultStr.toLowerCase().includes('error')) {
         consoleLogs.push({

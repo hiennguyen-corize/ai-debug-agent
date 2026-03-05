@@ -100,6 +100,7 @@ export const aggregateEvent = (event: AgentEvent): InvestigationStep => {
     case 'sourcemap_failed':
     case 'user_question':
     case 'user_answered':
+    case 'screenshot_captured':
       return aggregateFallback(event);
   }
 };

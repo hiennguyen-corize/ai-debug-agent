@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { Search, Loader2, Globe, Zap, MessageSquare } from 'lucide-react'
 import { useSettingsStore } from '#stores/settings-store'
 import {
   useInvestigationStore,
@@ -7,8 +6,7 @@ import {
   type Investigation,
 } from '#stores/investigation-store'
 import { startInvestigation } from '#api/investigate'
-import { Button } from '#components/ui/Button'
-
+import { Button } from '#components/primitives'
 
 export function ChatInput() {
   const [url, setUrl] = useState('')
@@ -56,7 +54,6 @@ export function ChatInput() {
         content: `Investigation started. Thread: \`${result.threadId}\``,
         timestamp: Date.now(),
       })
-
       connectSSE(invId, result.threadId)
       setLoading(false)
     } catch (err) {
@@ -72,54 +69,56 @@ export function ChatInput() {
   }, [url, hint, mode, loading, addInvestigation, updateInvestigation, addMessage, connectSSE])
 
   return (
-    <div className="border-t border-border-subtle glass px-4 py-3">
-      <div className="max-w-[800px] mx-auto">
-        {/* Single card container */}
-        <div className="rounded-xl border border-border-subtle bg-bg-secondary/50 overflow-hidden transition-all duration-200 focus-within:border-accent/40 focus-within:ring-1 focus-within:ring-accent/20">
-          {/* URL row */}
-          <div className="flex items-center gap-2 px-3 py-2.5">
-            <Globe className="w-4 h-4 text-text-muted shrink-0" />
+    <div className="border-t border-border bg-bg-secondary px-4 py-3">
+      <div className="max-w-3xl mx-auto">
+        {/* Form card — both inputs equal weight */}
+        <div className="rounded-md border border-border bg-bg-tertiary divide-y divide-border">
+          {/* Row 1: URL */}
+          <div className="flex items-center">
+            <label className="text-[10px] uppercase tracking-widest font-mono text-text-muted px-3 w-16 shrink-0">
+              URL
+            </label>
             <input
               type="url"
               placeholder="https://example.com/page-with-bug"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-              className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-text-primary px-2 py-2.5 placeholder:text-text-muted focus:outline-none"
             />
           </div>
 
-          {/* Divider + bottom toolbar */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-border-subtle/50 bg-bg-tertiary/30">
+          {/* Row 2: Hint */}
+          <div className="flex items-center">
+            <label className="text-[10px] uppercase tracking-widest font-mono text-text-muted px-3 w-16 shrink-0">
+              Hint
+            </label>
             <input
               type="text"
-              placeholder="Describe the bug (optional)"
+              placeholder="Describe the bug you're seeing"
               value={hint}
               onChange={(e) => setHint(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-              className="flex-1 bg-transparent text-xs text-text-secondary placeholder-text-muted/60 focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-text-primary px-2 py-2.5 placeholder:text-text-muted focus:outline-none"
             />
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setMode(mode === 'autonomous' ? 'interactive' : 'autonomous')}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono font-medium border cursor-pointer transition-colors duration-200 bg-accent/10 text-accent border-accent/15 hover:bg-accent/20"
-                title={`Switch to ${mode === 'autonomous' ? 'interactive' : 'autonomous'} mode`}
-              >
-                {mode === 'autonomous' ? <Zap className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-                {mode}
-              </button>
-
-              <Button
-                onClick={handleSubmit}
-                disabled={!url.trim() || loading}
-                size="sm"
-              >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                Investigate
-              </Button>
-            </div>
           </div>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center justify-between mt-2">
+          <button
+            onClick={() => setMode(mode === 'autonomous' ? 'interactive' : 'autonomous')}
+            className="text-[11px] text-text-muted font-mono hover:text-text-secondary cursor-pointer transition-colors"
+          >
+            mode: {mode}
+          </button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!url.trim() || loading}
+            size="sm"
+          >
+            {loading ? '…' : 'Investigate'}
+          </Button>
         </div>
       </div>
     </div>

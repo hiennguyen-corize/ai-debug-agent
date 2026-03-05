@@ -11,6 +11,7 @@ export type AgentEvent =
   | { type: 'user_question'; question: string; context: string }
   | { type: 'user_answered'; question: string }
   | { type: 'investigation_phase'; phase: string }
+  | { type: 'screenshot_captured'; agent: string; data: string }
 
 export type InvestigationReport = {
   url: string

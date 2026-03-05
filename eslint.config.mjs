@@ -23,7 +23,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/dist/', '**/node_modules/', 'fixture-app/', '**/*.mjs', '.agent/'],
+    ignores: ['**/dist/', '**/node_modules/', '**/*.mjs', '.agent/'],
   },
   {
     rules: {

@@ -10,8 +10,7 @@
     "shared",
     "mcp-server",
     "mcp-client",
-    "api",
-    "fixture-app"
+    "api"
   ],
   "scripts": {
     "typecheck": "tsc --build",

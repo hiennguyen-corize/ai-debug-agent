@@ -3,7 +3,6 @@ packages:
   - mcp-server
   - mcp-client
   - api
-  - fixture-app
 
 onlyBuiltDependencies:
   - better-sqlite3

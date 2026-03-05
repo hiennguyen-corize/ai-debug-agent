@@ -51,12 +51,6 @@ importers:
         specifier: ^4.7.0
         version: 4.12.5
 
-  fixture-app:
-    dependencies:
-      express:
-        specifier: ^5.0.0
-        version: 5.2.1
-
   mcp-client:
     dependencies:
       '@ai-debug/shared':

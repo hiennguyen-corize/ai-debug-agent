@@ -60,6 +60,7 @@ const toSkill = (meta: Record<string, string | string[]>, body: string): Skill =
   instructions: body,
   toolChain: Array.isArray(meta['toolChain']) ? meta['toolChain'] : [],
   hypothesisTemplates: Array.isArray(meta['hypothesisTemplates']) ? meta['hypothesisTemplates'] : [],
+  alwaysActive: String(meta['alwaysActive'] ?? 'false') === 'true',
 });
 
 export const loadSkillFile = async (filePath: string): Promise<Skill | undefined> => {
@@ -90,20 +91,24 @@ export const loadSkillsFromDir = async (dirPath: string): Promise<Skill[]> => {
 };
 
 export const loadAllSkills = async (skillsRoot: string): Promise<Skill[]> => {
-  const categories: SkillCategory[] = ['framework', 'bug-pattern', 'auth', 'source-map', 'browser', 'report'];
+  const absRoot = resolve(skillsRoot);
   const all: Skill[] = [];
+  const seen = new Set<string>();
 
-  for (const category of categories) {
-    const skills = await loadSkillsFromDir(join(skillsRoot, `${category}s`));
-    all.push(...skills);
+  let entries: string[];
+  try {
+    entries = await readdir(absRoot);
+  } catch {
+    return [];
   }
 
-  // Also try singular directory names (auth, report)
-  for (const category of categories) {
-    if (!category.includes('-')) {
-      const skills = await loadSkillsFromDir(join(skillsRoot, category));
-      for (const s of skills) {
-        if (!all.some((existing) => existing.id === s.id)) all.push(s);
+  for (const entry of entries) {
+    const dirPath = join(absRoot, entry);
+    const skills = await loadSkillsFromDir(dirPath);
+    for (const s of skills) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        all.push(s);
       }
     }
   }

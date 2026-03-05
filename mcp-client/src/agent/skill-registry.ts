@@ -66,10 +66,23 @@ export class SkillRegistry {
     return matches.sort((a, b) => b.confidence - a.confidence);
   }
 
+  getAlwaysActive(): Skill[] {
+    return [...this.skills.values()].filter((s) => s.alwaysActive === true);
+  }
+
   buildPromptContext(skillIds: string[]): string {
     const sections: string[] = [];
+    const seen = new Set<string>();
 
+    // Always-active skills first
+    for (const skill of this.getAlwaysActive()) {
+      seen.add(skill.id);
+      sections.push(`## [Skill: ${skill.name}]\n\n${skill.instructions}`);
+    }
+
+    // Then matched skills
     for (const id of skillIds) {
+      if (seen.has(id)) continue;
       const skill = this.skills.get(id);
       if (skill === undefined) continue;
       sections.push(`## [Skill: ${skill.name}]\n\n${skill.instructions}`);

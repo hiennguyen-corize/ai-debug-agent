@@ -26,4 +26,5 @@ export type Skill = SkillMetadata & {
   instructions: string;
   toolChain: string[];
   hypothesisTemplates: string[];
+  alwaysActive?: boolean;
 };

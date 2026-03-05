@@ -19,11 +19,14 @@ import { hasToolCalls, extractThinking } from '#agent/tool-parser.js';
 import { taskResultToEvidence } from '#graph/nodes/evidence.js';
 import type OpenAI from 'openai';
 
+import type { SkillRegistry } from '#agent/skill-registry.js';
+
 type ExecutorDeps = {
   llmClient: LLMClient;
   eventBus: EventBus;
   playwrightCall: (tool: string, args: Record<string, unknown>) => Promise<unknown>;
   playwrightTools: OpenAI.Chat.ChatCompletionTool[];
+  skillRegistry?: SkillRegistry;
 };
 
 // --- Validate tool call against available tools ---
@@ -81,7 +84,7 @@ const MAX_EXECUTOR_ITERATIONS = 10;
 const executeLoop = async (state: AgentState, deps: ExecutorDeps): Promise<BrowserTaskResult> => {
   const observations: string[] = [];
   const consoleLogs: CapturedLog[] = [];
-  const messages = buildExecutorMessages(state, deps.playwrightTools);
+  const messages = buildExecutorMessages(state, deps.playwrightTools, deps.skillRegistry);
 
   for (let i = 0; i < MAX_EXECUTOR_ITERATIONS; i++) {
     const response = await deps.llmClient.client.chat.completions.create({

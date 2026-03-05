@@ -12,13 +12,15 @@ import {
 import type { AgentState } from '#graph/state.js';
 import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
-import { SYNTHESIS_SYSTEM_PROMPT } from '#agent/prompts.js';
+import { buildSynthesisMessages } from '#agent/prompts.js';
+import type { SkillRegistry } from '#agent/skill-registry.js';
 
 type SynthesisDeps = {
   llmClient: LLMClient;
   eventBus: EventBus;
   startTime: number;
   supportsVision?: boolean;
+  skillRegistry?: SkillRegistry;
 };
 
 const buildSummaryContext = (state: AgentState): string => {
@@ -63,25 +65,26 @@ const collectScreenshots = (state: AgentState): string[] =>
   state.browserTaskResults.flatMap((r) => r.screenshotPaths).filter((s) => s.length > 0);
 
 const invokeLLM = async (context: string, state: AgentState, deps: SynthesisDeps): Promise<string> => {
-  const screenshots = deps.supportsVision === true ? collectScreenshots(state) : [];
+  const messages = buildSynthesisMessages(state, context, deps.skillRegistry);
 
-  // Build user content: text + optional images
-  const userContent = screenshots.length > 0
-    ? [
-        { type: 'text' as const, text: context },
+  // If vision is supported, append screenshots as image content
+  const screenshots = deps.supportsVision === true ? collectScreenshots(state) : [];
+  if (screenshots.length > 0) {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg !== undefined && lastMsg.role === 'user') {
+      lastMsg.content = [
+        { type: 'text' as const, text: typeof lastMsg.content === 'string' ? lastMsg.content : context },
         ...screenshots.map((s) => ({
           type: 'image_url' as const,
           image_url: { url: s.startsWith('data:') ? s : `data:image/png;base64,${s}` },
         })),
-      ]
-    : context;
+      ];
+    }
+  }
 
   const response = await deps.llmClient.client.chat.completions.create({
     model: deps.llmClient.model,
-    messages: [
-      { role: 'system', content: SYNTHESIS_SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
-    ] as Parameters<typeof deps.llmClient.client.chat.completions.create>[0]['messages'],
+    messages: messages as Parameters<typeof deps.llmClient.client.chat.completions.create>[0]['messages'],
     temperature: 0.1,
   });
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

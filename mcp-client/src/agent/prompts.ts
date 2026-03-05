@@ -8,6 +8,13 @@ import type { AgentState } from '#graph/state.js';
 import type { SkillRegistry } from '#agent/skill-registry.js';
 import type OpenAI from 'openai';
 
+// --- Shared Language Rule ---
+
+const LANGUAGE_RULE = `## LANGUAGE RULE
+ALWAYS reason internally in English.
+Write ALL user-facing output in the SAME language as the user's hint.
+Technical terms (error messages, code identifiers, tool names) stay in English.` as const;
+
 // --- Scout ---
 
 export const SCOUT_SYSTEM_PROMPT = `You are Scout — your mission is to observe and collect initial information.
@@ -24,10 +31,7 @@ DO NOT:
 - Draw conclusions
 - Perform complex interactions
 
-## LANGUAGE RULE
-ALWAYS reason internally in English.
-Write your OUTPUT and observations in the SAME language as the user's hint.
-Technical terms (error messages, code identifiers) stay in English.
+${LANGUAGE_RULE}
 
 OUTPUT: Return a structured ScoutObservation with all collected data.` as const;
 
@@ -61,9 +65,7 @@ When you have enough evidence → call finish_investigation.
 - DO NOT repeat the same investigation approach
 - If executor found console errors, analyze them before dispatching again
 
-## LANGUAGE RULE
-ALWAYS reason in English internally.
-Write your brief in the SAME language as the user's hint.` as const;
+${LANGUAGE_RULE}` as const;
 
 export const PLANNER_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
@@ -156,10 +158,7 @@ When testing different inputs/categories:
 - Page crashes/blank → screenshot → respond
 - After 8+ actions with no new evidence → respond with what you found
 
-## LANGUAGE RULE
-ALWAYS reason internally in English.
-Write your findings and observations in the SAME language as the user's hint.
-Technical terms (error messages, code identifiers, tool names) stay in English.
+${LANGUAGE_RULE}
 
 ## CRITICAL
 - Use ONLY the provided browser tools. Do NOT invent tool names.
@@ -173,31 +172,9 @@ Example: After browser_snapshot shows 'button "Add to Cart" [ref=e45]',
 call browser_click with element="Add to Cart" and ref="e45".` as const;
 
 // --- Synthesis ---
+// Report format is now injected via dev-report.skill.md (alwaysActive).
 
 export const SYNTHESIS_SYSTEM_PROMPT = `You are Synthesis — produce the final investigation report.
-
-OUTPUT: Use these EXACT markdown headers in your response:
-
-## Root Cause
-Precise, technical root cause based ONLY on observed evidence.
-
-## Reproduction Steps
-Numbered list of exact steps from evidence (what Executor actually did).
-
-## Confidence
-State: HIGH (source code seen), MEDIUM (error + context), or LOW (inference only).
-
-## Severity
-One of: critical, high, medium, low.
-
-## Assumptions
-List any assumptions made during investigation.
-
-## Suggested Fix
-Before/after code ONLY if source code was read. Otherwise suggest general defensive approach.
-
-## VISUAL ANALYSIS (when screenshots provided)
-If screenshots are attached, analyze visual state.
 
 ## ANTI-HALLUCINATION RULES (MANDATORY)
 - Use EXACT error messages from console logs — copy verbatim
@@ -205,8 +182,10 @@ If screenshots are attached, analyze visual state.
 - ONLY reference code constructs that appear in the evidence
 - Distinguish between OBSERVED facts and INFERRED conclusions
 
-LANGUAGE RULE: Write the FINAL report in the SAME language as the user's hint/input.
-Code identifiers and technical terms stay in English.
+## VISUAL ANALYSIS
+If screenshots are attached, analyze visual state and reference specific UI elements.
+
+${LANGUAGE_RULE}
 
 Be concise, technical, and actionable.` as const;
 
@@ -276,9 +255,16 @@ export const buildPlannerMessages = (
 export const buildExecutorMessages = (
   state: AgentState,
   _tools: OpenAI.Chat.ChatCompletionTool[],
+  skillRegistry?: SkillRegistry,
 ): OpenAI.Chat.ChatCompletionMessageParam[] => {
+  let systemPrompt: string = EXECUTOR_SYSTEM_PROMPT;
+  if (skillRegistry !== undefined && state.activeSkills.length > 0) {
+    const skillContext = skillRegistry.buildPromptContext(state.activeSkills);
+    systemPrompt = `${EXECUTOR_SYSTEM_PROMPT}\n\n# Active Skills\n\n${skillContext}`;
+  }
+
   const msgs: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: 'system', content: EXECUTOR_SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
   ];
 
   // Self-contained prompt: everything the executor needs
@@ -310,4 +296,25 @@ export const buildExecutorMessages = (
   msgs.push({ role: 'user', content: parts.join('\n\n') });
 
   return msgs;
+};
+
+export const buildSynthesisMessages = (
+  state: AgentState,
+  context: string,
+  skillRegistry?: SkillRegistry,
+): OpenAI.Chat.ChatCompletionMessageParam[] => {
+  let systemPrompt: string = SYNTHESIS_SYSTEM_PROMPT;
+
+  // Always inject skills (alwaysActive like dev-report + matched skills)
+  if (skillRegistry !== undefined) {
+    const skillContext = skillRegistry.buildPromptContext(state.activeSkills);
+    if (skillContext.length > 0) {
+      systemPrompt = `${SYNTHESIS_SYSTEM_PROMPT}\n\n# Report Skills\n\n${skillContext}`;
+    }
+  }
+
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: context },
+  ];
 };

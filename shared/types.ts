@@ -36,4 +36,5 @@ export type {
   CodeAnalysis,
   ReportSeverity,
   InvestigationReport,
+  InvestigationMode,
 } from './domain.js';

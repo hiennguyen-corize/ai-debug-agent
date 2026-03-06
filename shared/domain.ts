@@ -2,6 +2,8 @@
  * Investigation domain types.
  */
 
+export type InvestigationMode = 'interactive' | 'autonomous';
+
 export type SourceMapResolution = {
   bundleUrl: string;
   sourceMapUrl: string;

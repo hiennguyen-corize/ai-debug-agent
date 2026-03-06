@@ -51,6 +51,8 @@ const formatStep = (event: AgentEvent): string => {
       return `**[${time}] 🗺️ Source Map Failed** → ${event.reason}\n`;
     case 'screenshot_captured':
       return `**[${time}] 📸 Screenshot captured**\n`;
+    default:
+      return `**[${time}] ${agent} (unknown event)**\n`;
   }
 };
 

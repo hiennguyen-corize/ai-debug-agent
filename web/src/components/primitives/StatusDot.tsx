@@ -7,7 +7,7 @@ type StatusDotProps = {
 
 const statusStyles: Record<StatusDotProps['status'], string> = {
   pending: 'bg-text-muted',
-  running: 'bg-executor',
+  running: 'bg-worker',
   done: 'bg-success',
   error: 'bg-error',
 }

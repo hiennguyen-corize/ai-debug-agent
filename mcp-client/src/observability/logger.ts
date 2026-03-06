@@ -1,8 +1,8 @@
 /**
- * Pino JSONL logger — subscribes to event bus.
+ * Console logger — subscribes to event bus, writes structured logs.
  */
 
-import pino from 'pino';
+import { appendFileSync } from 'node:fs';
 import type { AgentEvent } from '@ai-debug/shared';
 import type { EventBus, Unsubscribe } from './event-bus.js';
 
@@ -20,14 +20,16 @@ const mapEventToLevel = (event: AgentEvent): 'info' | 'warn' | 'error' => {
 };
 
 export const createLogger = (eventBus: EventBus, logFile?: string): AgentLogger => {
-  const logger = pino(
-    { level: 'info', timestamp: pino.stdTimeFunctions.isoTime },
-    pino.destination({ dest: logFile ?? LOG_FILE, sync: false }),
-  );
+  const dest = logFile ?? LOG_FILE;
 
   const log = (event: AgentEvent): void => {
     const level = mapEventToLevel(event);
-    logger[level](event, event.type);
+    const line = JSON.stringify({ level, time: new Date().toISOString(), ...event });
+    try {
+      appendFileSync(dest, `${line}\n`);
+    } catch {
+      // ignore write errors
+    }
   };
 
   const detach = eventBus.subscribe(log);

@@ -10,6 +10,7 @@
 > **MANDATORY:** You MUST read the appropriate agent file and its skills BEFORE performing any implementation.
 
 ### 1. Modular Skill Loading Protocol
+
 ```
 Agent activated → Check frontmatter "skills:" field
     │
@@ -22,6 +23,7 @@ Agent activated → Check frontmatter "skills:" field
 - **Rule Priority:** P0 (GEMINI.md) > P1 (Agent .md) > P2 (SKILL.md). All rules are binding.
 
 ### 2. Enforcement Protocol
+
 1. **When agent is activated:**
    - ✅ READ all rules inside the agent file.
    - ✅ CHECK frontmatter `skills:` list.
@@ -34,13 +36,13 @@ Agent activated → Check frontmatter "skills:" field
 
 **Before ANY action, classify the request:**
 
-| Request Type | Trigger Keywords | Result |
-|--------------|------------------|--------|
-| **QUESTION** | "what is", "how does", "explain" | Text Response |
-| **SURVEY/INTEL** | "analyze", "list files", "overview" | Session Intel |
-| **SIMPLE CODE** | "fix", "add", "change" (single file) | Inline Edit |
+| Request Type     | Trigger Keywords                           | Result                      |
+| ---------------- | ------------------------------------------ | --------------------------- |
+| **QUESTION**     | "what is", "how does", "explain"           | Text Response               |
+| **SURVEY/INTEL** | "analyze", "list files", "overview"        | Session Intel               |
+| **SIMPLE CODE**  | "fix", "add", "change" (single file)       | Inline Edit                 |
 | **COMPLEX CODE** | "build", "create", "implement", "refactor" | **{task-slug}.md Required** |
-| **SLASH CMD** | /debug, /test, /plan, /brainstorm | Command-specific flow |
+| **SLASH CMD**    | /debug, /test, /plan, /brainstorm          | Command-specific flow       |
 
 ---
 
@@ -49,6 +51,7 @@ Agent activated → Check frontmatter "skills:" field
 ### 🌐 Language Handling
 
 When user's prompt is NOT in English:
+
 1. **Internally translate** for better comprehension
 2. **Respond in user's language** — match their communication
 3. **Code comments/variables** remain in English
@@ -67,19 +70,21 @@ When user's prompt is NOT in English:
 ### 📁 File Dependency Awareness
 
 **Before modifying ANY file:**
+
 1. Understand the module boundary (mcp-server vs mcp-client vs shared)
 2. Identify dependent files across packages
 3. Update ALL affected files together
 
 ### 🗺️ System Map Read
 
-> 🔴 **MANDATORY:** Read `ARCHITECTURE.md` and `specs.md` at session start.
+> 🔴 **MANDATORY:** Read `ARCHITECTURE.md` at session start.
 
 **Key paths:**
+
 - Agents: `.agent/agents/`
 - Skills: `.agent/skills/`
 - Workflows: `.agent/workflows/`
-- Full specs: `specs.md`
+- Architecture: `ARCHITECTURE.md`
 
 ### 🧠 Read → Understand → Apply
 
@@ -110,34 +115,59 @@ import type { EventBus } from '#observability/event-bus.js';
 - TypeScript resolution via `tsconfig.json` `"paths"`
 - Same-directory `./` imports are fine
 
+### 🔒 TypeScript Mandatory Patterns
+
+**1. `as const` Objects over TS `enum` — NEVER use `enum`**
+
+```typescript
+// ❌ enum Status { IDLE = 'idle', RUNNING = 'running' }
+// ✅
+export const STATUS = { IDLE: 'idle', RUNNING: 'running' } as const;
+export type Status = (typeof STATUS)[keyof typeof STATUS];
+```
+
+**2. `keyof typeof` over Hand-Written Union Types**
+
+```typescript
+// ❌ export type AgentName = 'scout' | 'planner'; // drifts from source
+// ✅
+export type AgentName = (typeof AGENT_NAME)[keyof typeof AGENT_NAME];
+```
+
+**3. Separation of Concerns per File**
+
+- Don't mix types + runtime logic + constants in one file → split into `types.ts`, `constants.ts`, `logic.ts`
+- Files exceeding ~200 lines → look for natural split points
+- Exception: co-locating a small type with its sole consumer is OK
+
 ### 📱 Project Type Routing
 
-| Project Type | Primary Agent | Skills |
-|--------------|---------------|--------|
-| **Service/Agent Logic** | `debugger` | systematic-debugging, typescript-expert |
-| **MCP Server/Tools** | `explorer-agent` + `debugger` | api-patterns, typescript-expert |
-| **REST API (Hono)** | `debugger` | api-patterns, typescript-expert |
-| **Tests** | `test-engineer` | testing-patterns, webapp-testing |
+| Project Type            | Primary Agent                 | Skills                                  |
+| ----------------------- | ----------------------------- | --------------------------------------- |
+| **Service/Agent Logic** | `debugger`                    | systematic-debugging, typescript-expert |
+| **MCP Server/Tools**    | `explorer-agent` + `debugger` | api-patterns, typescript-expert         |
+| **REST API (Hono)**     | `debugger`                    | api-patterns, typescript-expert         |
+| **Tests**               | `test-engineer`               | testing-patterns, webapp-testing        |
 
 ### 🛑 Socratic Gate
 
 **For complex requests, STOP and ASK first:**
 
-| Request Type | Strategy |
-|--------------|----------|
+| Request Type            | Strategy                                           |
+| ----------------------- | -------------------------------------------------- |
 | **New Feature / Build** | ASK minimum 2 questions about scope and edge cases |
-| **Code Edit / Bug Fix** | Confirm understanding of the bug and its context |
-| **Vague / Simple** | Ask for Purpose and Scope |
+| **Code Edit / Bug Fix** | Confirm understanding of the bug and its context   |
+| **Vague / Simple**      | Ask for Purpose and Scope                          |
 
 ### 🚫 Git Workflow Rules
 
 **CRITICAL: Branch Protection**
 
-| Rule | Status | Reason |
-|------|--------|--------|
-| **Force Push** | ❌ **FORBIDDEN** | Rewrites history |
-| **Regular Push** | ✅ Allowed | Safe |
-| **Rebase (local)** | ✅ Allowed | Before first push only |
+| Rule               | Status           | Reason                 |
+| ------------------ | ---------------- | ---------------------- |
+| **Force Push**     | ❌ **FORBIDDEN** | Rewrites history       |
+| **Regular Push**   | ✅ Allowed       | Safe                   |
+| **Rebase (local)** | ✅ Allowed       | Before first push only |
 
 **Commit Format:** `<type>: <description>` — Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
@@ -149,21 +179,21 @@ import type { EventBus } from '#observability/event-bus.js';
 
 ### Available Agents (3)
 
-| Agent | Domain & Focus |
-|-------|----------------|
-| `debugger` | Root cause analysis, agent pipeline investigation |
-| `explorer-agent` | Codebase discovery, dependency mapping |
-| `test-engineer` | Unit tests, integration tests, fixture-app E2E |
+| Agent            | Domain & Focus                                    |
+| ---------------- | ------------------------------------------------- |
+| `debugger`       | Root cause analysis, agent pipeline investigation |
+| `explorer-agent` | Codebase discovery, dependency mapping            |
+| `test-engineer`  | Unit tests, integration tests, fixture-app E2E    |
 
 ### Key Skills (6)
 
-| Skill | Purpose |
-|-------|---------|
-| `clean-code` | Coding standards (GLOBAL) |
-| `typescript-expert` | TypeScript type-level programming |
-| `testing-patterns` | Vitest, testing strategies |
-| `systematic-debugging` | 4-phase debugging methodology |
-| `api-patterns` | MCP protocol / API design |
-| `webapp-testing` | E2E, Playwright patterns |
+| Skill                  | Purpose                           |
+| ---------------------- | --------------------------------- |
+| `clean-code`           | Coding standards (GLOBAL)         |
+| `typescript-expert`    | TypeScript type-level programming |
+| `testing-patterns`     | Vitest, testing strategies        |
+| `systematic-debugging` | 4-phase debugging methodology     |
+| `api-patterns`         | MCP protocol / API design         |
+| `webapp-testing`       | E2E, Playwright patterns          |
 
 ---

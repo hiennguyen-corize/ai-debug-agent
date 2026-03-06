@@ -3,7 +3,6 @@
  */
 
 import {
-  AGENT_NAME,
   STEP_TYPE,
   STREAM_LEVEL,
   type AgentEvent,
@@ -16,7 +15,6 @@ const TRUNCATE_LENGTH = 100;
 
 const SUMMARY_TYPES = new Set<StepType>([
   STEP_TYPE.PHASE_CHANGE,
-  STEP_TYPE.HYPOTHESIS,
   STEP_TYPE.RESULT,
   STEP_TYPE.ERROR,
 ]);
@@ -50,17 +48,9 @@ const aggregateToolResult = (event: Extract<AgentEvent, { type: 'tool_result' }>
   metadata: { success: event.success, durationMs: event.durationMs },
 });
 
-const aggregateHypothesis = (event: Extract<AgentEvent, { type: 'hypothesis_created' }>): InvestigationStep => ({
-  timestamp: now(),
-  agent: AGENT_NAME.INVESTIGATOR,
-  type: STEP_TYPE.HYPOTHESIS,
-  summary: event.hypotheses.map((h) => `[${h.confidence.toString()}] ${h.statement}`).join(' | '),
-  metadata: { hypotheses: event.hypotheses },
-});
-
 const aggregatePhase = (event: Extract<AgentEvent, { type: 'investigation_phase' }>): InvestigationStep => ({
   timestamp: now(),
-  agent: AGENT_NAME.INVESTIGATOR,
+  agent: 'agent',
   type: STEP_TYPE.PHASE_CHANGE,
   summary: `Phase → ${event.phase.toUpperCase()}`,
   metadata: { phase: event.phase },
@@ -75,7 +65,7 @@ const aggregateError = (event: Extract<AgentEvent, { type: 'error' }>): Investig
 
 const extractAgent = (event: AgentEvent): InvestigationStep['agent'] => {
   if ('agent' in event && typeof event.agent === 'string') return event.agent;
-  return AGENT_NAME.INVESTIGATOR;
+  return 'agent';
 };
 
 const aggregateFallback = (event: AgentEvent): InvestigationStep => ({
@@ -91,15 +81,11 @@ export const aggregateEvent = (event: AgentEvent): InvestigationStep => {
     case 'reasoning': return aggregateReasoning(event);
     case 'tool_call': return aggregateToolCall(event);
     case 'tool_result': return aggregateToolResult(event);
-    case 'hypothesis_created': return aggregateHypothesis(event);
     case 'investigation_phase': return aggregatePhase(event);
     case 'error': return aggregateError(event);
     case 'llm_usage':
-    case 'hypothesis_updated':
     case 'sourcemap_resolved':
     case 'sourcemap_failed':
-    case 'user_question':
-    case 'user_answered':
     case 'screenshot_captured':
       return aggregateFallback(event);
   }

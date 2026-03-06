@@ -20,9 +20,7 @@
   --color-text-muted:     #52525B;
 
   /* ─── Functional Color (each = one meaning) ─── */
-  --color-scout:    #2DD4BF;
-  --color-planner:  #818CF8;
-  --color-executor: #FCD34D;
+  --color-agent:    #818cf8;
   --color-report:   #C084FC;
   --color-success:  #4ADE80;
   --color-error:    #F87171;

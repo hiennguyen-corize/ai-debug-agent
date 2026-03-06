@@ -3,15 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "jsx": "react-jsx",
     "paths": {
       "#agent/*.js": ["./src/agent/*.ts"],
-      "#auth/*.js": ["./src/auth/*.ts"],
-      "#graph/*.js": ["./src/graph/*.ts"],
-      "#model/*.js": ["./src/model/*.ts"],
       "#observability/*.js": ["./src/observability/*.ts"],
       "#reporter/*.js": ["./src/reporter/*.ts"],
-      "#schemas/*.js": ["./src/schemas/*.ts"],
       "#service/*.js": ["./src/service/*.ts"]
     }
   },

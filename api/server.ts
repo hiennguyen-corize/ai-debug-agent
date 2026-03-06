@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { logger } from '#lib/logger.js';
 import { apiKeyAuth } from '#middleware/auth.js';
 import { errorHandler } from '#middleware/error-handler.js';
 import { requestLogger } from '#middleware/request-logger.js';
@@ -32,8 +33,7 @@ app.route('/reports', reportsRoute);
 const port = Number(process.env['PORT'] ?? 3100);
 
 serve({ fetch: app.fetch, port }, () => {
-  // eslint-disable-next-line no-console
-  console.log(`AI Debug API running on http://localhost:${port.toString()}`);
+  logger.info(`AI Debug API running on http://localhost:${port.toString()}`);
 });
 
 export { app };

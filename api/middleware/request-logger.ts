@@ -3,6 +3,7 @@
  */
 
 import type { MiddlewareHandler } from 'hono';
+import { logger } from '#lib/logger.js';
 
 export const requestLogger: MiddlewareHandler = async (c, next) => {
   const start = performance.now();
@@ -14,6 +15,5 @@ export const requestLogger: MiddlewareHandler = async (c, next) => {
   const duration = Math.round(performance.now() - start);
   const status = c.res.status;
 
-  // eslint-disable-next-line no-console
-  console.log(`${method} ${path} → ${status.toString()} (${duration.toString()}ms)`);
+  logger.info({ method, path, status, duration }, `${method} ${path} → ${status.toString()}`);
 };

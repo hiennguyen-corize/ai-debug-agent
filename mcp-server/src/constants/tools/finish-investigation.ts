@@ -7,6 +7,6 @@ export const TOOL_FINISH_INVESTIGATION = {
   DESCRIPTION: 'Signal that the investigation is complete and trigger synthesis of the final report.',
   PARAMS: {
     REASON: 'Why the investigation is being concluded',
-    CONFIDENT: 'Whether the investigator is confident in the findings',
+    CONFIDENT: 'Whether the orchestrator is confident in the findings',
   },
 } as const;

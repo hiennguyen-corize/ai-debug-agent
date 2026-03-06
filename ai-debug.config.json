@@ -5,48 +5,18 @@
             "model": "qwen3-coder:480b",
             "baseURL": "https://ollama.com/v1",
             "apiKey": "$OLLAMA_API_KEY"
-        },
-        "investigator": {
-            "provider": "ollama-cloud",
-            "model": "qwen3-coder:480b",
-            "baseURL": "https://ollama.com/v1",
-            "apiKey": "$OLLAMA_API_KEY"
-        },
-        "explorer": {
-            "provider": "ollama-cloud",
-            "model": "qwen3-vl:235b",
-            "baseURL": "https://ollama.com/v1",
-            "apiKey": "$OLLAMA_API_KEY",
-            "supportsVision": true
-        },
-        "scout": {
-            "provider": "ollama-cloud",
-            "model": "qwen3-next:80b",
-            "baseURL": "https://ollama.com/v1",
-            "apiKey": "$OLLAMA_API_KEY"
         }
     },
     "agent": {
         "mode": "autonomous",
-        "maxIterations": 60,
-        "maxRetries": 2,
-        "callbackUrl": null
+        "maxIterations": 30,
+        "maxRetries": 3
     },
     "browser": {
-        "headless": true,
-        "spaWaitMs": null,
-        "guardrails": {
-            "allowPayment": false,
-            "allowDelete": false,
-            "allowLogout": false
-        }
+        "headless": true
     },
     "output": {
-        "reportDir": "./debug-reports",
+        "reportsDir": "./debug-reports",
         "streamLevel": "summary"
-    },
-    "auth": {
-        "strategy": null,
-        "credentials": null
     }
 }

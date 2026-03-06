@@ -103,7 +103,6 @@ export const createThreadService = (repo: ThreadRepository): {
             {
               mcpCall: bridge.call,
               onEvent: (event: AgentEvent) => { this.handleEvent(thread.id, event); },
-              callbackUrl: input.callbackUrl,
               configOverrides: input.config,
             },
           );

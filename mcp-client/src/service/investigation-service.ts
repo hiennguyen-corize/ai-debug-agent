@@ -1,34 +1,55 @@
 /**
- * InvestigationService — Facade pattern.
- * Single orchestration entry point for all investigation consumers.
+ * InvestigationService — simplified for single-loop architecture.
  */
 
 import { loadConfig } from '#agent/config-loader.js';
 import { createLLMClient } from '#agent/llm-client.js';
 import { createEventBus } from '#observability/event-bus.js';
 import { createInvestigationLogger } from '#observability/investigation-logger.js';
-import { createInvestigationGraph } from '#graph/index.js';
-import { AGENT_NAME, type InvestigationRequest, type InvestigationReport, type AgentEvent, type InvestigationMode } from '@ai-debug/shared';
+import { runAgentLoop, type FinishResult } from '#agent/agent-loop.js';
+import type { InvestigationRequest, InvestigationReport, AgentEvent } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
-import { createPromptUser } from '#agent/prompt-user-factory.js';
 import { createPlaywrightBridge } from '#agent/playwright-bridge.js';
 
 export type InvestigationDeps = {
   mcpCall: McpCall;
   onEvent?: (event: AgentEvent) => void;
-  promptUser?: (q: string) => Promise<string>;
-  callbackUrl?: string | undefined;
   configOverrides?: Record<string, unknown> | undefined;
 };
 
-const resolvePromptUser = (
-  deps: InvestigationDeps,
-  mode: InvestigationMode,
-): ((q: string) => Promise<string>) =>
-  deps.promptUser ?? createPromptUser({
-    mode,
-    callbackUrl: deps.callbackUrl,
-  });
+const buildReport = (result: FinishResult, url: string, startTime: number): InvestigationReport => ({
+  summary: result.summary,
+  rootCause: result.rootCause,
+  severity: result.severity as InvestigationReport['severity'],
+  reproSteps: result.stepsToReproduce,
+  evidence: [
+    ...result.evidence.consoleErrors.map((e) => ({
+      type: 'console_error' as const,
+      description: e,
+      data: e,
+    })),
+    ...result.evidence.networkErrors.map((e) => ({
+      type: 'network_error' as const,
+      description: e,
+      data: e,
+    })),
+  ],
+  suggestedFix: result.suggestedFix !== undefined ? {
+    file: 'unknown',
+    line: 0,
+    before: '',
+    after: '',
+    explanation: result.suggestedFix,
+  } : null,
+  codeLocation: null,
+  dataFlow: '',
+  hypotheses: [],
+  cannotDetermine: false,
+  assumptions: [],
+  timestamp: new Date().toISOString(),
+  url,
+  durationMs: Date.now() - startTime,
+});
 
 export const runInvestigationPipeline = async (
   request: InvestigationRequest,
@@ -48,27 +69,22 @@ export const runInvestigationPipeline = async (
 
   const headless = config.browser.headless;
   const playwrightBridge = await createPlaywrightBridge(headless);
+  const startTime = Date.now();
 
   try {
-    const graph = createInvestigationGraph({
-      plannerLLM: createLLMClient(AGENT_NAME.INVESTIGATOR, config),
-      executorLLM: createLLMClient(AGENT_NAME.EXPLORER, config),
-      scoutLLM: createLLMClient(AGENT_NAME.SCOUT, config),
-      synthesisLLM: createLLMClient(AGENT_NAME.SYNTHESIS, config),
-      eventBus,
-      mcpCall: deps.mcpCall,
+    const llm = createLLMClient(config);
+
+    const result = await runAgentLoop(request.url, request.hint ?? null, {
+      llm,
       playwrightCall: playwrightBridge.call,
       playwrightTools: playwrightBridge.tools,
-      promptUser: resolvePromptUser(deps, request.mode),
+      mcpCall: deps.mcpCall,
+      eventBus,
+      maxIterations: config.agent.maxIterations,
     });
 
-    const result = await graph.invoke({
-      url: request.url,
-      hint: request.hint ?? null,
-      investigationMode: request.mode,
-    }, { recursionLimit: 100 });
-
-    return result.finalReport ?? null;
+    if (result === null) return null;
+    return buildReport(result, request.url, startTime);
   } finally {
     await playwrightBridge.close();
     await logger.writeFooter();

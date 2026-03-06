@@ -1,6 +1,6 @@
 # AI Debug Agent
 
-> **v4.1** — Investigation-First Architecture
+> **v6.0** — Orchestrator/Worker Architecture
 
 AI-powered web application debugger. Give it a URL and a bug description → it investigates autonomously using browser tools, builds hypotheses, resolves source maps, and produces a root cause report.
 
@@ -13,7 +13,7 @@ Developer → POST /investigate (REST) or investigate_bug (MCP)
             ┌──────────────┐
             │  mcp-client   │  LangGraph Investigation Graph
             │               │
-            │  Preflight → Scout → Investigator ↔ Explorer
+            │  Preflight → Scout → Orchestrator ↔ Worker
             │                        │
             │               Source Map → Synthesis → Report
             └──────┬───────┘
@@ -31,10 +31,10 @@ Developer → POST /investigate (REST) or investigate_bug (MCP)
 
 ### 1. Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| **Node.js** | ≥ 24 (see `.nvmrc`) |
-| **pnpm** | ≥ 9 |
+| Requirement             | Version                                |
+| ----------------------- | -------------------------------------- |
+| **Node.js**             | ≥ 24 (see `.nvmrc`)                    |
+| **pnpm**                | ≥ 9                                    |
 | **Playwright browsers** | Installed via `npx playwright install` |
 
 ### 2. Install
@@ -84,41 +84,41 @@ Edit `ai-debug.config.json` — API keys reference env vars with `$` prefix:
 ```jsonc
 {
   "llm": {
-    // Investigator — central reasoning agent (Tier 1, needs strong model)
-    "investigator": {
+    // Orchestrator — strategic brain (Tier 1, needs strong model)
+    "orchestrator": {
       "provider": "openai",
       "model": "gpt-4o",
-      "apiKey": "$OPENAI_API_KEY"   // ← reads from .env automatically
+      "apiKey": "$OPENAI_API_KEY", // ← reads from .env automatically
     },
-    // Explorer + Scout — browser interaction (Tier 2, fast model preferred)
-    "explorer": {
+    // Worker + Scout — browser execution (Tier 2, fast model preferred)
+    "worker": {
       "provider": "google",
       "model": "gemini-2.0-flash",
-      "apiKey": "$GOOGLE_API_KEY"
+      "apiKey": "$GOOGLE_API_KEY",
     },
     "scout": {
       "provider": "google",
       "model": "gemini-2.0-flash",
-      "apiKey": "$GOOGLE_API_KEY"
-    }
+      "apiKey": "$GOOGLE_API_KEY",
+    },
   },
   "agent": {
-    "mode": "autonomous",       // "autonomous" | "interactive"
+    "mode": "autonomous", // "autonomous" | "interactive"
     "maxIterations": 30,
-    "maxRetries": 2
+    "maxRetries": 2,
   },
   "browser": {
     "headless": true,
     "guardrails": {
-      "allowPayment": false,    // Block payment actions
-      "allowDelete": false,     // Block deletion actions
-      "allowLogout": false      // Block logout actions
-    }
+      "allowPayment": false, // Block payment actions
+      "allowDelete": false, // Block deletion actions
+      "allowLogout": false, // Block logout actions
+    },
   },
   "output": {
     "reportDir": "./debug-reports",
-    "streamLevel": "summary"    // "summary" | "verbose"
-  }
+    "streamLevel": "summary", // "summary" | "verbose"
+  },
 }
 ```
 
@@ -126,16 +126,16 @@ Edit `ai-debug.config.json` — API keys reference env vars with `$` prefix:
 
 ### 5. Environment Variables Reference
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `OPENAI_API_KEY` | OpenAI API key (used via `$OPENAI_API_KEY` in config) | — |
-| `GOOGLE_API_KEY` | Google AI API key | — |
-| `ANTHROPIC_API_KEY` | Anthropic API key | — |
-| `AI_DEBUG_API_KEY` | REST API auth (`X-API-Key` header). Empty = no auth (dev mode) | — |
-| `PORT` | REST API server port | `3100` |
-| `BROWSER_HEADLESS` | Show browser window (`false` to watch) | `true` |
-| `LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` | `info` |
-| `LOGS_DIR` | Directory for investigation log files | `logs` |
+| Variable            | Purpose                                                        | Default |
+| ------------------- | -------------------------------------------------------------- | ------- |
+| `OPENAI_API_KEY`    | OpenAI API key (used via `$OPENAI_API_KEY` in config)          | —       |
+| `GOOGLE_API_KEY`    | Google AI API key                                              | —       |
+| `ANTHROPIC_API_KEY` | Anthropic API key                                              | —       |
+| `AI_DEBUG_API_KEY`  | REST API auth (`X-API-Key` header). Empty = no auth (dev mode) | —       |
+| `PORT`              | REST API server port                                           | `3100`  |
+| `BROWSER_HEADLESS`  | Show browser window (`false` to watch)                         | `true`  |
+| `LOG_LEVEL`         | Log level: `debug`, `info`, `warn`, `error`                    | `info`  |
+| `LOGS_DIR`          | Directory for investigation log files                          | `logs`  |
 
 ---
 
@@ -172,6 +172,7 @@ Add to your MCP client config (Antigravity, Cursor, Claude Desktop):
 ```
 
 Then invoke via MCP:
+
 ```
 investigate_bug({ url: "https://example.com", hint: "cart crash" })
 ```
@@ -194,20 +195,21 @@ curl -X POST http://localhost:3100/investigate \
 ```
 
 **Response:** `201`
+
 ```json
 { "threadId": "debug-1709500000000", "status": "started" }
 ```
 
 **Request body options:**
 
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `url` | `string` (URL) | ✅ | — |
-| `hint` | `string` | ❌ | — |
-| `mode` | `"autonomous" \| "interactive"` | ❌ | `"autonomous"` |
-| `callbackUrl` | `string` (URL) | ❌ | — |
-| `sourcemapDir` | `string` | ❌ | — |
-| `config` | `object` | ❌ | — |
+| Field          | Type                            | Required | Default        |
+| -------------- | ------------------------------- | -------- | -------------- |
+| `url`          | `string` (URL)                  | ✅       | —              |
+| `hint`         | `string`                        | ❌       | —              |
+| `mode`         | `"autonomous" \| "interactive"` | ❌       | `"autonomous"` |
+| `callbackUrl`  | `string` (URL)                  | ❌       | —              |
+| `sourcemapDir` | `string`                        | ❌       | —              |
+| `config`       | `object`                        | ❌       | —              |
 
 ### `GET /investigate/:threadId` — Poll status
 
@@ -217,6 +219,7 @@ curl http://localhost:3100/investigate/debug-1709500000000 \
 ```
 
 **Response:**
+
 ```json
 {
   "status": "done",
@@ -249,10 +252,10 @@ curl "http://localhost:3100/reports?severity=critical" -H "X-API-Key: your-key"
 
 ## Investigation Modes
 
-| Mode | Behavior | Use case |
-|------|----------|----------|
-| **`autonomous`** | Agent investigates without asking questions. Auto-assumes when context is unclear. | CI/CD, unattended |
-| **`interactive`** | Agent can ask user for clarification via terminal (local) or `callbackUrl` (cloud). | Guided debugging |
+| Mode              | Behavior                                                                            | Use case          |
+| ----------------- | ----------------------------------------------------------------------------------- | ----------------- |
+| **`autonomous`**  | Agent investigates without asking questions. Auto-assumes when context is unclear.  | CI/CD, unattended |
+| **`interactive`** | Agent can ask user for clarification via terminal (local) or `callbackUrl` (cloud). | Guided debugging  |
 
 **`callbackUrl`** (interactive + cloud): Agent POSTs questions to your endpoint, waits up to 5 minutes for a response:
 
@@ -290,29 +293,29 @@ Reports are saved to `./debug-reports/` as markdown files.
 
 Any server with an OpenAI-compatible API works:
 
-| Server | `baseURL` | Install |
-|--------|-----------|---------|
-| **Ollama** | `http://localhost:11434/v1` | `brew install ollama && ollama pull qwen2.5:32b` |
-| **LM Studio** | `http://localhost:1234/v1` | Download from lmstudio.ai |
-| **vLLM** | `http://localhost:8000/v1` | `pip install vllm` |
-| **llama.cpp** | `http://localhost:8080/v1` | Build from source |
+| Server        | `baseURL`                   | Install                                          |
+| ------------- | --------------------------- | ------------------------------------------------ |
+| **Ollama**    | `http://localhost:11434/v1` | `brew install ollama && ollama pull qwen2.5:32b` |
+| **LM Studio** | `http://localhost:1234/v1`  | Download from lmstudio.ai                        |
+| **vLLM**      | `http://localhost:8000/v1`  | `pip install vllm`                               |
+| **llama.cpp** | `http://localhost:8080/v1`  | Build from source                                |
 
 ```jsonc
 // ai-debug.config.json — mix cloud + local
 {
   "llm": {
-    "investigator": {
+    "orchestrator": {
       "provider": "openai",
       "model": "gpt-4o",
-      "apiKey": "sk-..."
+      "apiKey": "sk-...",
     },
-    "explorer": {
+    "worker": {
       "provider": "ollama",
       "model": "qwen2.5:7b",
       "baseURL": "http://localhost:11434/v1",
-      "apiKey": "not-needed"
-    }
-  }
+      "apiKey": "not-needed",
+    },
+  },
 }
 ```
 
@@ -360,12 +363,12 @@ ai-debug-agent/
 
 ## Tool Access Control
 
-| Agent | Allowed Tools |
-|-------|---------------|
-| **Investigator** | `dispatch_browser_task`, `fetch_source_map`, `resolve_error_location`, `read_source_file`, `ask_user`, `finish_investigation` |
-| **Explorer** | All browser tools + `get_console_logs`, `get_network_logs`, `get_network_payload` |
-| **Scout** | `browser_navigate`, `browser_get_dom`, `browser_click`, `get_console_logs`, `get_network_logs`, `browser_screenshot` |
-| **Synthesis** | None |
+| Agent            | Allowed Tools                                                                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Orchestrator** | `issue_task`, `fetch_source_map`, `resolve_error_location`, `read_source_file`, `ask_user`, `finish_investigation`   |
+| **Worker**       | All browser tools + `get_console_logs`, `get_network_logs`, `get_network_payload`                                    |
+| **Scout**        | `browser_navigate`, `browser_get_dom`, `browser_click`, `get_console_logs`, `get_network_logs`, `browser_screenshot` |
+| **Synthesis**    | None                                                                                                                 |
 
 Enforced at runtime — `ToolAccessDeniedError` thrown if agent calls unauthorized tool.
 
@@ -393,19 +396,19 @@ The agent dynamically loads investigation skills based on detected context:
 ```
 Page loaded → Scout detects React + API errors
   → SkillRegistry resolves: [react, api-error, js-exception]
-  → Investigator receives context-specific playbooks in system prompt
+  → Orchestrator receives context-specific playbooks in system prompt
 ```
 
 **21 skills across 6 categories:**
 
-| Category | Skills |
-|----------|--------|
-| **Frameworks** | `react`, `nextjs`, `vue` |
+| Category         | Skills                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frameworks**   | `react`, `nextjs`, `vue`                                                                                                                                          |
 | **Bug Patterns** | `api-error`, `js-exception`, `silent-failure`, `race-condition`, `state-management`, `infinite-loading`, `navigation`, `form-input`, `file-upload`, `performance` |
-| **Auth** | `cookie-session`, `oauth` |
-| **Source Map** | `webpack`, `vite` |
-| **Browser** | `spa-navigation`, `shadow-dom` |
-| **Report** | `dev-report`, `github-issue` |
+| **Auth**         | `cookie-session`, `oauth`                                                                                                                                         |
+| **Source Map**   | `webpack`, `vite`                                                                                                                                                 |
+| **Browser**      | `spa-navigation`, `shadow-dom`                                                                                                                                    |
+| **Report**       | `dev-report`, `github-issue`                                                                                                                                      |
 
 Skill files: `mcp-client/skills/**/*.skill.md`
 
@@ -423,6 +426,7 @@ logs/
 ```
 
 Logs contain timestamped entries of every agent action:
+
 - 💭 Reasoning steps
 - 🔧 Tool calls with arguments
 - 🧪 Hypotheses with confidence scores
@@ -434,14 +438,14 @@ Logs contain timestamped entries of every agent action:
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `Cannot find module '@ai-debug/shared'` | Run `pnpm run build` — shared package must be built first |
-| `browserType.launch: Executable doesn't exist` | Run `npx playwright install chromium` |
-| `401 Unauthorized` on API calls | Set `X-API-Key` header, or unset `AI_DEBUG_API_KEY` env for dev mode |
-| `ECONNREFUSED` on local model | Verify model server is running (`ollama serve`, LM Studio, etc.) |
-| `TypeError: fetch is not a function` | Requires Node.js ≥ 24 for native `fetch` |
-| ESLint errors on test files | Test files are excluded from strict rules — run `pnpm run lint` from root |
+| Problem                                        | Solution                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `Cannot find module '@ai-debug/shared'`        | Run `pnpm run build` — shared package must be built first                 |
+| `browserType.launch: Executable doesn't exist` | Run `npx playwright install chromium`                                     |
+| `401 Unauthorized` on API calls                | Set `X-API-Key` header, or unset `AI_DEBUG_API_KEY` env for dev mode      |
+| `ECONNREFUSED` on local model                  | Verify model server is running (`ollama serve`, LM Studio, etc.)          |
+| `TypeError: fetch is not a function`           | Requires Node.js ≥ 24 for native `fetch`                                  |
+| ESLint errors on test files                    | Test files are excluded from strict rules — run `pnpm run lint` from root |
 
 ---
 
@@ -449,15 +453,15 @@ Logs contain timestamped entries of every agent action:
 
 10 built-in patterns for hypothesis seeding:
 
-| ID | Pattern | Signals |
-|----|---------|---------|
-| `api-error` | API Error | 4xx/5xx, error response |
-| `silent-failure` | Silent Failure | No network, no console, no UI change |
-| `js-exception` | JS Exception | TypeError, ReferenceError, white screen |
-| `race-condition` | Race Condition | Inconsistent, double submit, stale data |
-| `state-management` | State Bug | Refresh fixes, data leaks |
-| `infinite-loading` | Infinite Loading | Spinner/skeleton persists |
-| `navigation` | Routing Bug | Redirect wrong, back button broken |
-| `form-input` | Form Bug | Validation broken, submit does nothing |
-| `file-upload` | Upload Bug | Upload no response, file rejected |
-| `performance` | Performance | Slow over time, memory leak |
+| ID                 | Pattern          | Signals                                 |
+| ------------------ | ---------------- | --------------------------------------- |
+| `api-error`        | API Error        | 4xx/5xx, error response                 |
+| `silent-failure`   | Silent Failure   | No network, no console, no UI change    |
+| `js-exception`     | JS Exception     | TypeError, ReferenceError, white screen |
+| `race-condition`   | Race Condition   | Inconsistent, double submit, stale data |
+| `state-management` | State Bug        | Refresh fixes, data leaks               |
+| `infinite-loading` | Infinite Loading | Spinner/skeleton persists               |
+| `navigation`       | Routing Bug      | Redirect wrong, back button broken      |
+| `form-input`       | Form Bug         | Validation broken, submit does nothing  |
+| `file-upload`      | Upload Bug       | Upload no response, file rejected       |
+| `performance`      | Performance      | Slow over time, memory leak             |

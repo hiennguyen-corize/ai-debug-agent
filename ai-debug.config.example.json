@@ -1,42 +1,21 @@
 {
     "llm": {
-        "investigator": {
+        "default": {
             "provider": "openai",
             "model": "gpt-4o",
             "apiKey": "$OPENAI_API_KEY"
-        },
-        "explorer": {
-            "provider": "google",
-            "model": "gemini-2.0-flash",
-            "apiKey": "$GOOGLE_API_KEY"
-        },
-        "scout": {
-            "provider": "google",
-            "model": "gemini-2.0-flash",
-            "apiKey": "$GOOGLE_API_KEY"
         }
     },
     "agent": {
         "mode": "autonomous",
         "maxIterations": 30,
-        "maxRetries": 2,
-        "callbackUrl": null
+        "maxRetries": 3
     },
     "browser": {
-        "headless": true,
-        "spaWaitMs": null,
-        "guardrails": {
-            "allowPayment": false,
-            "allowDelete": false,
-            "allowLogout": false
-        }
+        "headless": true
     },
     "output": {
-        "reportDir": "./debug-reports",
+        "reportsDir": "./debug-reports",
         "streamLevel": "summary"
-    },
-    "auth": {
-        "strategy": null,
-        "credentials": null
     }
 }

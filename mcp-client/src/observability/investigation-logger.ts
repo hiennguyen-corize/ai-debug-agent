@@ -1,8 +1,5 @@
 /**
  * Investigation logger — persists investigation steps to a markdown log file.
- *
- * Subscribes to EventBus and writes structured log in real-time.
- * Output: `logs/{timestamp}-{sanitized-url}.md`
  */
 
 import { mkdir, appendFile, writeFile } from 'node:fs/promises';
@@ -10,8 +7,6 @@ import { join } from 'node:path';
 import type { AgentEvent } from '@ai-debug/shared';
 import type { EventBus } from '#observability/event-bus.js';
 import { aggregateEvent } from '#observability/step-aggregator.js';
-
-const LOGS_DIR = 'logs';
 
 const sanitizeFilename = (url: string): string =>
   url
@@ -37,12 +32,15 @@ const formatStep = (event: AgentEvent): string => {
       return `**[${time}] ${agent} 💭**\n${event.text}\n`;
     case 'tool_call':
       return `**[${time}] ${agent} 🔧 ${event.tool}**\n\`\`\`json\n${JSON.stringify(event.args, null, 2)}\n\`\`\`\n`;
-    case 'tool_result':
-      return `**[${time}] ${agent} ${event.success ? '✅' : '❌'} ${event.tool}** _(${event.durationMs.toString()}ms)_\n`;
-    case 'hypothesis_created':
-      return `**[${time}] ${agent} 🧪 Hypotheses**\n${event.hypotheses.map((h) => `- [${(h.confidence * 100).toFixed(0)}%] ${h.statement}`).join('\n')}\n`;
-    case 'hypothesis_updated':
-      return `**[${time}] ${agent} 🔄 Hypothesis Updated** → ${event.id} (${(event.newConfidence * 100).toFixed(0)}%)\n`;
+    case 'tool_result': {
+      const status = event.success ? '✅' : '❌';
+      const header = `**[${time}] ${agent} ${status} ${event.tool}** _(${event.durationMs.toString()}ms)_`;
+      if (event.result !== undefined && event.result.length > 0) {
+        const truncated = event.result.length > 500 ? `${event.result.slice(0, 500)}…` : event.result;
+        return `${header}\n\`\`\`\n${truncated}\n\`\`\`\n`;
+      }
+      return `${header}\n`;
+    }
     case 'error':
       return `**[${time}] ${agent} ⚠️ ERROR**\n> ${event.message}\n`;
     case 'llm_usage':
@@ -51,10 +49,6 @@ const formatStep = (event: AgentEvent): string => {
       return `**[${time}] 🗺️ Source Map Resolved** → ${event.originalFile}:${event.line.toString()}\n`;
     case 'sourcemap_failed':
       return `**[${time}] 🗺️ Source Map Failed** → ${event.reason}\n`;
-    case 'user_question':
-      return `**[${time}] ❓ Agent asks user:** ${event.question}\n`;
-    case 'user_answered':
-      return `**[${time}] 💬 User answered:** ${event.question}\n`;
     case 'screenshot_captured':
       return `**[${time}] 📸 Screenshot captured**\n`;
   }
@@ -66,7 +60,6 @@ type InvestigationLogger = {
   writeFooter: () => Promise<void>;
 };
 
-// Cost per 1M tokens (gpt-4o-mini default, override via config later)
 const COST_PER_1M_INPUT = 0.15;
 const COST_PER_1M_OUTPUT = 0.60;
 
@@ -76,7 +69,7 @@ export const createInvestigationLogger = async (
   hint?: string,
   logsDir?: string,
 ): Promise<InvestigationLogger> => {
-  const dir = logsDir ?? LOGS_DIR;
+  const dir = logsDir ?? 'logs';
   await mkdir(dir, { recursive: true });
 
   const filename = `${formatTimestamp()}-${sanitizeFilename(url)}.md`;
@@ -85,13 +78,10 @@ export const createInvestigationLogger = async (
 
   const header = [
     `# Investigation Log`,
-    ``,
     `- **URL**: ${url}`,
     hint !== undefined ? `- **Hint**: ${hint}` : '',
     `- **Started**: ${new Date().toISOString()}`,
-    ``,
     `---`,
-    ``,
   ].filter(Boolean).join('\n');
 
   await writeFile(filePath, header, 'utf-8');
@@ -119,18 +109,14 @@ export const createInvestigationLogger = async (
     const totalCost = inputCost + outputCost;
 
     const footer = [
-      ``,
-      `---`,
+      `\n---`,
       `## 📊 Usage Summary`,
-      ``,
       `| | Prompt | Completion | Total |`,
       `|---|--------|------------|-------|`,
       `| Tokens | ${totalPromptTokens.toLocaleString()} | ${totalCompletionTokens.toLocaleString()} | ${totalTokens.toLocaleString()} |`,
       `| Cost | $${inputCost.toFixed(4)} | $${outputCost.toFixed(4)} | **$${totalCost.toFixed(4)}** |`,
-      ``,
       `- **LLM Calls**: ${llmCalls.toString()}`,
       `- **Duration**: ${durationSec}s`,
-      ``,
     ].join('\n');
 
     await appendFile(filePath, footer, 'utf-8');

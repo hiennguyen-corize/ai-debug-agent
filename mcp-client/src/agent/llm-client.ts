@@ -1,27 +1,9 @@
 /**
- * LLM client — OpenAI SDK wrapper supporting multi-provider.
+ * LLM client — OpenAI SDK wrapper, single role.
  */
 
 import OpenAI from 'openai';
-import type { AgentName } from '@ai-debug/shared';
-import type { AppConfig, LLMRoleConfig } from './config-loader.js';
-
-const AGENT_ROLE_MAP = {
-  scout: 'scout',
-  investigator: 'investigator',
-  explorer: 'explorer',
-  synthesis: 'investigator',
-} as const;
-
-
-const resolveRoleConfig = (role: AgentName, config: AppConfig): LLMRoleConfig => {
-  if (role in AGENT_ROLE_MAP) {
-    const mappedRole = AGENT_ROLE_MAP[role as keyof typeof AGENT_ROLE_MAP];
-    const roleSpecific = config.llm[mappedRole];
-    if (roleSpecific !== undefined) return roleSpecific;
-  }
-  return config.llm.default;
-};
+import type { AppConfig } from './config-loader.js';
 
 export type LLMClient = {
   client: OpenAI;
@@ -30,11 +12,17 @@ export type LLMClient = {
   supportsVision: boolean;
 };
 
-export const createLLMClient = (role: AgentName, config: AppConfig): LLMClient => {
-  const roleConfig = resolveRoleConfig(role, config);
+export const createLLMClient = (config: AppConfig): LLMClient => {
+  const llmConfig = config.llm.default;
   const client = new OpenAI({
-    apiKey: roleConfig.apiKey || 'not-needed',
-    baseURL: roleConfig.baseURL,
+    apiKey: llmConfig.apiKey || 'not-needed',
+    baseURL: llmConfig.baseURL,
+    timeout: 60_000,
   });
-  return { client, model: roleConfig.model, provider: roleConfig.provider, supportsVision: roleConfig.supportsVision };
+  return {
+    client,
+    model: llmConfig.model,
+    provider: llmConfig.provider,
+    supportsVision: llmConfig.supportsVision,
+  };
 };

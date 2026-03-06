@@ -4,40 +4,11 @@
 
 export {
   InvestigationRequestSchema,
-  FinishInvestigationSchema,
 } from './schemas.js';
 
 export type {
   InvestigationRequest,
-  FinishInvestigation,
 } from './schemas.js';
-
-export {
-  CONSOLE_LOG_TYPE,
-} from './browser.js';
-
-export type {
-  BrowserTask,
-  BrowserTaskResult,
-  CapturedRequest,
-  CapturedLog,
-  ConsoleLogType,
-  CorrelatedEvidence,
-} from './browser.js';
-
-export {
-  HYPOTHESIS_STATUS,
-  EVIDENCE_CATEGORY,
-  EVIDENCE_TYPE,
-} from './hypothesis.js';
-
-export type {
-  HypothesisStatus,
-  Hypothesis,
-  EvidenceCategory,
-  EvidenceType,
-  Evidence,
-} from './hypothesis.js';
 
 export {
   AGENT_NAME,
@@ -56,70 +27,13 @@ export type {
 } from './agent.js';
 
 export {
-  INVESTIGATION_STATUS,
-} from './investigation.js';
-
-export type {
-  InvestigationStatus,
-  InvestigationMode,
-} from './investigation.js';
-
-export {
-  MODEL_TIER,
-} from './model.js';
-
-export type {
-  ModelTier,
-  ModelProfile,
-} from './model.js';
-
-export {
   REPORT_SEVERITY,
 } from './domain.js';
 
 export type {
-  NetworkError,
-  ScoutObservation,
-  UserClarification,
+  Evidence,
   SourceMapResolution,
   CodeAnalysis,
   ReportSeverity,
   InvestigationReport,
 } from './domain.js';
-
-export type {
-  ParsedStackFrame,
-  ParsedError,
-} from './stack-frame.js';
-
-export {
-  TOOL_NAME,
-} from './tool-names.js';
-
-export type {
-  ToolName,
-} from './tool-names.js';
-
-export {
-  BUG_PATTERNS,
-} from './bug-patterns.js';
-
-export type {
-  BugPattern,
-} from './bug-patterns.js';
-
-export {
-  TOOL_ACCESS,
-  ToolAccessDeniedError,
-  assertToolAccess,
-} from './tool-access.js';
-
-export {
-  SKILL_CATEGORY,
-} from './skill-types.js';
-
-export type {
-  Skill,
-  SkillCategory,
-  SkillMetadata,
-} from './skill-types.js';

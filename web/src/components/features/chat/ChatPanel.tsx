@@ -4,6 +4,7 @@ import type { ChatMessage as ChatMessageType } from '#stores/investigation-store
 import { SkeletonCard } from '#components/primitives'
 import { AgentGroup, type MessageGroup } from './AgentGroup'
 import { ChatMessage } from './ChatMessage'
+import { ReportPanel } from './ReportPanel'
 
 function EmptyState() {
   return (
@@ -15,11 +16,9 @@ function EmptyState() {
           network issues, and DOM state to find the root cause.
         </p>
         <div className="flex justify-center gap-6 text-xs text-text-muted font-mono">
-          <span>Scout</span>
+          <span>Navigate</span>
           <span>→</span>
-          <span>Plan</span>
-          <span>→</span>
-          <span>Execute</span>
+          <span>Investigate</span>
           <span>→</span>
           <span>Report</span>
         </div>
@@ -65,8 +64,6 @@ export function ChatPanel() {
 
   const isExpanded = useCallback((i: number) => {
     if (manualExpanded.has(i)) return true
-    const g = groups[i]
-    if (g?.agent === 'synthesis') return true
     return i === lastGroupIndex && !manualExpanded.has(-i - 1)
   }, [groups, lastGroupIndex, manualExpanded])
 
@@ -101,11 +98,12 @@ export function ChatPanel() {
               isExpanded={isExpanded(gi)}
               isActive={gi === lastGroupIndex && active.status === 'running'}
               onToggle={() => onToggle(gi)}
+              startTime={active.createdAt}
             />
           ) : (
             <div key={gi}>
               {group.messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} hideAgent />
+                <ChatMessage key={msg.id} message={msg} hideAgent startTime={active.createdAt} />
               ))}
             </div>
           )
@@ -114,6 +112,12 @@ export function ChatPanel() {
         {active.status === 'running' && (
           <div className="py-4">
             <SkeletonCard />
+          </div>
+        )}
+
+        {active.status === 'done' && active.report && (
+          <div className="py-4">
+            <ReportPanel report={active.report} />
           </div>
         )}
       </div>

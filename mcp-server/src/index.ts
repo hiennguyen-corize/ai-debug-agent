@@ -6,6 +6,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { logger } from '#lib/logger.js';
 
 import { registerFetchSourceMapTool } from './tools/fetch-source-map.js';
 import { registerResolveErrorLocationTool } from './tools/resolve-error-location.js';
@@ -34,13 +35,11 @@ registerInvestigateBugTool(server);
 const main = async (): Promise<void> => {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  // eslint-disable-next-line no-console
-  console.error('AI Debug MCP Server running on stdio');
+  logger.info('AI Debug MCP Server running on stdio');
 };
 
 main().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
-  console.error('Fatal error:', err);
+  logger.fatal({ err }, 'Fatal error');
   process.exit(1);
 });
 

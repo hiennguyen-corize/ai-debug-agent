@@ -9,7 +9,7 @@ import type { InvestigationRequest } from '@ai-debug/shared';
 
 const CONFIG_FILE_NAME = 'ai-debug.config.json';
 
-const LLMRoleSchema = z.object({
+const LLMConfigSchema = z.object({
   provider: z.string(),
   baseURL: z.string(),
   model: z.string(),
@@ -17,25 +17,20 @@ const LLMRoleSchema = z.object({
   supportsVision: z.boolean().default(false),
 });
 
-export type LLMRoleConfig = z.infer<typeof LLMRoleSchema>;
+export type LLMRoleConfig = z.infer<typeof LLMConfigSchema>;
 
 const AppConfigSchema = z.object({
   baseUrl: z.string().default('http://localhost:3000'),
   llm: z.object({
-    default: LLMRoleSchema.default({
+    default: LLMConfigSchema.default({
       provider: 'ollama', baseURL: 'http://localhost:11434/v1',
       model: 'qwen2.5:7b', apiKey: '',
     }),
-    investigator: LLMRoleSchema.optional(),
-    explorer: LLMRoleSchema.optional(),
-    scout: LLMRoleSchema.optional(),
   }).default({}),
   agent: z.object({
     maxIterations: z.number().default(30),
     taskTimeoutMs: z.number().default(90_000),
-    tokenBudgetRatio: z.number().default(0.85),
     maxRetries: z.number().default(3),
-    retryBaseDelayMs: z.number().default(1_000),
     mode: z.enum(['interactive', 'autonomous']).default('interactive'),
   }).default({}),
   browser: z.object({
@@ -49,12 +44,8 @@ const AppConfigSchema = z.object({
     localPath: z.string().nullable().default(null),
     buildDir: z.string().default('./dist'),
   }).default({}),
-  guardrails: z.object({
-    allowList: z.array(z.string()).default([]),
-  }).default({}),
   output: z.object({
     reportsDir: z.string().default('./debug-reports'),
-    deduplicationThreshold: z.number().default(0.85),
     streamLevel: z.enum(['summary', 'verbose']).default('summary'),
   }).default({}),
 });

@@ -1,35 +1,6 @@
 /**
- * Investigation domain types — scout observations, reports, code analysis.
+ * Investigation domain types.
  */
-
-import type { Evidence, Hypothesis } from './hypothesis.js';
-import type { ParsedError } from './stack-frame.js';
-
-export type NetworkError = {
-  url: string;
-  method: string;
-  status: number;
-  statusText: string;
-};
-
-export type ScoutObservation = {
-  url: string;
-  pageTitle: string;
-  consoleErrors: string[];
-  parsedErrors: ParsedError[];
-  networkErrors: NetworkError[];
-  suspiciousPatterns: string[];
-  domSnapshot: string;
-  bundleUrls: string[];
-  interactiveElements: string[];
-  timestamp: string;
-};
-
-export type UserClarification = {
-  question: string;
-  answer: string;
-  timestamp: string;
-};
 
 export type SourceMapResolution = {
   bundleUrl: string;
@@ -66,6 +37,12 @@ export const REPORT_SEVERITY = {
 
 export type ReportSeverity = (typeof REPORT_SEVERITY)[keyof typeof REPORT_SEVERITY];
 
+export type Evidence = {
+  type: string;
+  description: string;
+  data?: unknown;
+};
+
 export type InvestigationReport = {
   summary: string;
   rootCause: string;
@@ -74,7 +51,7 @@ export type InvestigationReport = {
   suggestedFix: CodeAnalysis['suggestedFix'];
   reproSteps: string[];
   evidence: Evidence[];
-  hypotheses: Hypothesis[];
+  hypotheses: never[];
   severity: ReportSeverity;
   cannotDetermine: boolean;
   assumptions: string[];

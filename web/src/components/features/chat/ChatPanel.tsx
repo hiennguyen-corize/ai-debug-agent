@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { useInvestigationStore } from '#stores/investigation-store'
 import type { ChatMessage as ChatMessageType } from '#stores/investigation-store'
-import { SkeletonCard } from '#components/primitives'
+import { SkeletonCard, Button } from '#components/primitives'
 import { AgentGroup, type MessageGroup } from './AgentGroup'
 import { ChatMessage } from './ChatMessage'
 import { ReportPanel } from './ReportPanel'
@@ -21,6 +21,46 @@ function EmptyState() {
           <span>Investigate</span>
           <span>→</span>
           <span>Report</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InteractiveInput({ investigationId }: { investigationId: string }) {
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const sendMessage = useInvestigationStore((s) => s.sendMessage)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const handleSend = useCallback(async () => {
+    const trimmed = message.trim()
+    if (!trimmed || sending) return
+    setSending(true)
+    await sendMessage(investigationId, trimmed)
+    setMessage('')
+    setSending(false)
+  }, [message, sending, investigationId, sendMessage])
+
+  return (
+    <div className="py-3 px-4 mx-auto max-w-3xl animate-fade-in">
+      <div className="rounded-md border border-accent-primary/30 bg-bg-tertiary p-3">
+        <p className="text-xs text-accent-primary font-mono mb-2">⏸️ Agent is waiting for your guidance</p>
+        <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Tell the agent what to investigate next..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            className="flex-1 bg-transparent text-sm text-text-primary px-2 py-1.5 border border-border rounded placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
+          />
+          <Button onClick={handleSend} disabled={!message.trim() || sending} size="sm">
+            {sending ? '…' : 'Send'}
+          </Button>
         </div>
       </div>
     </div>
@@ -109,10 +149,14 @@ export function ChatPanel() {
           )
         ))}
 
-        {active.status === 'running' && (
+        {active.status === 'running' && !active.isWaitingForInput && (
           <div className="py-4">
             <SkeletonCard />
           </div>
+        )}
+
+        {active.isWaitingForInput && (
+          <InteractiveInput investigationId={active.id} />
         )}
 
         {active.status === 'done' && active.report && (
@@ -126,3 +170,4 @@ export function ChatPanel() {
     </div>
   )
 }
+

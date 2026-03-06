@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { AgentEvent, InvestigationReport } from '#api/types'
-import { createSSE } from '#api/investigate'
+import { createSSE, sendMessage as apiSendMessage, getThread } from '#api/investigate'
 
 export type ChatMessage = {
   id: string
@@ -22,6 +22,7 @@ export type Investigation = {
   report: InvestigationReport | null
   error: string | null
   createdAt: number
+  isWaitingForInput: boolean
 }
 
 type InvestigationState = {
@@ -35,6 +36,7 @@ type InvestigationState = {
   getActive: () => Investigation | undefined
   hydrate: () => Promise<void>
   connectSSE: (investigationId: string, threadId: string) => void
+  sendMessage: (investigationId: string, message: string) => Promise<void>
 }
 
 let counter = 0
@@ -99,6 +101,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
     sse.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data as string) as AgentEvent
+        const isWaiting = event.type === 'waiting_for_input'
         get().addMessage(investigationId, {
           id: createMessageId(),
           role: 'agent',
@@ -107,14 +110,40 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
           agent: 'agent' in event ? (event as { agent: string }).agent : undefined,
           event,
         })
+        if (isWaiting) {
+          get().updateInvestigation(investigationId, { isWaitingForInput: true })
+        }
       } catch {
         // ignore parse errors
       }
     }
     sse.onerror = () => {
       sse.close()
-      get().updateInvestigation(investigationId, { status: 'done' })
+      getThread(threadId)
+        .then((t) => {
+          get().updateInvestigation(investigationId, {
+            status: (t.status === 'running' ? 'done' : t.status) as Investigation['status'],
+            report: t.report,
+            error: t.error,
+          })
+        })
+        .catch(() => {
+          get().updateInvestigation(investigationId, { status: 'done' })
+        })
     }
+  },
+
+  sendMessage: async (investigationId: string, message: string) => {
+    const inv = get().investigations.find((i) => i.id === investigationId)
+    if (!inv?.threadId) return
+    get().addMessage(investigationId, {
+      id: createMessageId(),
+      role: 'user',
+      content: message,
+      timestamp: Date.now(),
+    })
+    get().updateInvestigation(investigationId, { isWaitingForInput: false })
+    await apiSendMessage(inv.threadId, message)
   },
 
   hydrate: async () => {
@@ -152,6 +181,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
           report: t.report,
           error: t.error,
           createdAt: t.createdAt ?? Date.now(),
+          isWaitingForInput: false,
         })
       }
 

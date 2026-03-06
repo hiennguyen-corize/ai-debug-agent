@@ -150,32 +150,70 @@ const MAX_CONSOLE_ERRORS = 10;
 const MAX_STACK_LINES = 5;
 
 /**
- * Deduplicate and truncate console errors/warnings.
- * Groups identical error messages, truncates stack traces.
+ * Extract a stable error signature by normalizing dynamic values.
+ * Same error type with different property names, URLs, or IDs → same signature.
+ */
+export const extractErrorSignature = (errorLine: string): string =>
+  errorLine
+    .replace(/\(reading '[\w.]+'\)/g, "(reading '*')")
+    .replace(/https?:\/\/\S+/g, '*')
+    .replace(/\b\d{3,}\b/g, '*')
+    .replace(/[a-f0-9]{8,}/gi, '*')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+type ErrorCluster = {
+  signature: string;
+  firstOccurrence: string;
+  count: number;
+  index: number;
+};
+
+/**
+ * Cluster error entries by normalized signature.
+ * Returns clusters sorted by first appearance.
+ */
+const clusterErrors = (errorEntries: string[]): ErrorCluster[] => {
+  const clusters = new Map<string, ErrorCluster>();
+
+  for (let i = 0; i < errorEntries.length; i++) {
+    const entry = errorEntries[i];
+    if (entry === undefined) continue;
+    const firstLine = entry.split('\n')[0] ?? '';
+    const signature = extractErrorSignature(firstLine);
+
+    const existing = clusters.get(signature);
+    if (existing !== undefined) {
+      existing.count++;
+    } else {
+      clusters.set(signature, { signature, firstOccurrence: entry, count: 1, index: i });
+    }
+  }
+
+  return [...clusters.values()].sort((a, b) => a.index - b.index);
+};
+
+/**
+ * Cluster, deduplicate, and truncate console errors/warnings.
+ * Groups errors by normalized signature, truncates stack traces.
  */
 const summarizeConsoleErrors = (text: string): string => {
   const lines = text.split('\n');
-  const errors = new Map<string, number>();
-  const output: string[] = [];
+  const errorEntries: string[] = [];
+  const nonErrorLines: string[] = [];
   let currentError = '';
   let stackLineCount = 0;
   let inStack = false;
 
   for (const line of lines) {
-    // New error line (starts with [error], [warning], console.error, etc.)
     if ((/^\[?(error|warning|info)/i).test(line) || line.startsWith('console.')) {
-      // Flush previous error
-      if (currentError !== '') {
-        const count = errors.get(currentError) ?? 0;
-        errors.set(currentError, count + 1);
-      }
+      if (currentError !== '') errorEntries.push(currentError);
       currentError = line;
       stackLineCount = 0;
       inStack = false;
       continue;
     }
 
-    // Stack trace line (starts with whitespace + "at ")
     if (line.trimStart().startsWith('at ') || line.trimStart().startsWith('Error:')) {
       inStack = true;
       stackLineCount++;
@@ -187,30 +225,26 @@ const summarizeConsoleErrors = (text: string): string => {
       continue;
     }
 
-    // Non-error, non-stack line — keep as-is
     if (!inStack) {
-      output.push(line);
+      nonErrorLines.push(line);
     }
   }
 
-  // Flush last error
-  if (currentError !== '') {
-    const count = errors.get(currentError) ?? 0;
-    errors.set(currentError, count + 1);
+  if (currentError !== '') errorEntries.push(currentError);
+
+  const clusters = clusterErrors(errorEntries);
+
+  for (let i = 0; i < clusters.length && i < MAX_CONSOLE_ERRORS; i++) {
+    const cluster = clusters[i];
+    if (cluster === undefined) continue;
+    const prefix = cluster.count > 1 ? `[×${String(cluster.count)}] ` : '';
+    nonErrorLines.push(prefix + cluster.firstOccurrence);
   }
 
-  // Build deduplicated error list
-  let errorCount = 0;
-  for (const [error, count] of errors) {
-    if (errorCount >= MAX_CONSOLE_ERRORS) {
-      output.push(`…and ${String(errors.size - MAX_CONSOLE_ERRORS)} more errors`);
-      break;
-    }
-    const prefix = count > 1 ? `(×${String(count)}) ` : '';
-    output.push(prefix + error);
-    errorCount++;
+  if (clusters.length > MAX_CONSOLE_ERRORS) {
+    nonErrorLines.push(`…and ${String(clusters.length - MAX_CONSOLE_ERRORS)} more error clusters`);
   }
 
-  return output.join('\n');
+  return nonErrorLines.join('\n');
 };
 

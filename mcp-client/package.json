@@ -26,6 +26,10 @@
             "types": "./dist/agent/mcp-bridge.d.ts",
             "default": "./dist/agent/mcp-bridge.js"
         },
+        "./agent/message-queue": {
+            "types": "./dist/agent/message-queue.d.ts",
+            "default": "./dist/agent/message-queue.js"
+        },
         "./agent/bridge-factory": {
             "types": "./dist/agent/bridge-factory.d.ts",
             "default": "./dist/agent/bridge-factory.js"

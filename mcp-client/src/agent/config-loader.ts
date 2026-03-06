@@ -28,7 +28,7 @@ const AppConfigSchema = z.object({
     }),
   }).default({}),
   agent: z.object({
-    maxIterations: z.number().default(30),
+    maxIterations: z.number().default(50),
     taskTimeoutMs: z.number().default(90_000),
     maxRetries: z.number().default(3),
     mode: z.enum(['interactive', 'autonomous']).default('interactive'),

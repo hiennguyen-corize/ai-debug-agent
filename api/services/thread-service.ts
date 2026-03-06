@@ -4,6 +4,8 @@
 
 import type { ThreadRepository, ThreadRecord } from '#repositories/thread-repository.js';
 import type { AgentEvent, InvestigationReport, InvestigationMode } from '@ai-debug/shared';
+import { INVESTIGATION_MODE } from '@ai-debug/shared';
+import { createMessageQueue, type MessageQueue } from '@ai-debug/mcp-client/agent/message-queue';
 
 type EventSubscriber = (event: AgentEvent) => void;
 
@@ -27,8 +29,10 @@ export const createThreadService = (repo: ThreadRepository): {
   unsubscribe(threadId: string, subscriber: EventSubscriber): void;
   isRunning(threadId: string): boolean;
   startPipeline(thread: ThreadRecord, input: StartInvestigationInput): Promise<void>;
+  sendMessage(threadId: string, message: string): boolean;
 } => {
   const liveSubscribers = new Map<string, EventSubscriber[]>();
+  const messageQueues = new Map<string, MessageQueue>();
 
   const generateId = (): string => `debug-${Date.now().toString()}`;
 
@@ -37,6 +41,9 @@ export const createThreadService = (repo: ThreadRepository): {
       const id = generateId();
       const thread = repo.create({ id, url: input.url, hint: input.hint, mode: input.mode });
       liveSubscribers.set(id, []);
+      if (input.mode === INVESTIGATION_MODE.INTERACTIVE) {
+        messageQueues.set(id, createMessageQueue());
+      }
       return thread;
     },
 
@@ -59,11 +66,13 @@ export const createThreadService = (repo: ThreadRepository): {
         repo.updateStatus(threadId, 'done');
       }
       liveSubscribers.delete(threadId);
+      messageQueues.delete(threadId);
     },
 
     failThread(threadId: string, error: string): void {
       repo.updateError(threadId, error);
       liveSubscribers.delete(threadId);
+      messageQueues.delete(threadId);
     },
 
     handleEvent(threadId: string, event: AgentEvent): void {
@@ -104,6 +113,7 @@ export const createThreadService = (repo: ThreadRepository): {
               mcpCall: bridge.call,
               onEvent: (event: AgentEvent) => { this.handleEvent(thread.id, event); },
               configOverrides: input.config,
+              messageQueue: messageQueues.get(thread.id),
             },
           );
           this.completeThread(thread.id, report);
@@ -113,6 +123,13 @@ export const createThreadService = (repo: ThreadRepository): {
       } catch (err) {
         this.failThread(thread.id, err instanceof Error ? err.message : String(err));
       }
+    },
+
+    sendMessage(threadId: string, message: string): boolean {
+      const queue = messageQueues.get(threadId);
+      if (queue === undefined) return false;
+      queue.push(message);
+      return true;
     },
   };
 };

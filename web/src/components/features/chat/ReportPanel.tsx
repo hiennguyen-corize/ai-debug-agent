@@ -1,4 +1,4 @@
-import type { InvestigationReport, Evidence } from '#api/types'
+import type { InvestigationReport } from '#api/types'
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'text-error',
@@ -80,6 +80,17 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
         </Section>
       )}
 
+      {/* Network Findings */}
+      {(report.networkFindings ?? []).length > 0 && (
+        <Section title="Network Findings">
+          <ul className="space-y-1">
+            {(report.networkFindings ?? []).map((finding, i) => (
+              <li key={i} className="text-sm text-text-secondary font-mono">• {finding}</li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {/* Suggested Fix */}
       {fixExplanation && (
         <Section title="Suggested Fix">
@@ -90,9 +101,15 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
       {/* Code Location */}
       {report.codeLocation && (
         <Section title="Code Location">
-          <code className="text-xs text-text-muted font-mono">
+          <code className="text-xs text-text-muted font-mono block">
             {report.codeLocation.file}:{report.codeLocation.line}
+            {report.codeLocation.column ? `:${report.codeLocation.column}` : ''}
           </code>
+          {report.codeLocation.snippet && (
+            <pre className="text-xs text-text-secondary font-mono bg-bg-tertiary p-2 rounded overflow-x-auto whitespace-pre-wrap mt-1">
+              {report.codeLocation.snippet}
+            </pre>
+          )}
         </Section>
       )}
 

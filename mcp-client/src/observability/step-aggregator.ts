@@ -87,6 +87,7 @@ export const aggregateEvent = (event: AgentEvent): InvestigationStep => {
     case 'sourcemap_resolved':
     case 'sourcemap_failed':
     case 'screenshot_captured':
+    case 'waiting_for_input':
       return aggregateFallback(event);
   }
 };

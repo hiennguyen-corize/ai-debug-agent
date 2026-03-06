@@ -9,7 +9,7 @@
     },
     "agent": {
         "mode": "autonomous",
-        "maxIterations": 30,
+        "maxIterations": 50,
         "maxRetries": 3
     },
     "browser": {

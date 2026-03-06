@@ -34,7 +34,21 @@ export type {
   Evidence,
   SourceMapResolution,
   CodeAnalysis,
+  CodeLocation,
   ReportSeverity,
   InvestigationReport,
   InvestigationMode,
 } from './domain.js';
+
+export { INVESTIGATION_MODE } from './domain.js';
+
+export { CONSOLE_LOG_TYPE } from './browser.js';
+
+export type {
+  ConsoleLogType,
+  CapturedLog,
+  CapturedRequest,
+  BrowserTask,
+  BrowserTaskResult,
+  CorrelatedEvidence,
+} from './browser.js';

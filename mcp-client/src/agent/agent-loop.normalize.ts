@@ -42,6 +42,20 @@ const normalizeSuggestedFix = (raw: unknown): string | undefined => {
   return undefined;
 };
 
+const normalizeCodeLocation = (raw: unknown): FinishResult['codeLocation'] => {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const obj = raw as Record<string, unknown>;
+  const file = typeof obj['file'] === 'string' ? obj['file'] : undefined;
+  const line = typeof obj['line'] === 'number' ? obj['line'] : undefined;
+  if (file === undefined || line === undefined) return undefined;
+  return {
+    file,
+    line,
+    column: typeof obj['column'] === 'number' ? obj['column'] : undefined,
+    snippet: typeof obj['snippet'] === 'string' ? obj['snippet'] : undefined,
+  };
+};
+
 export const normalizeFinishResult = (args: Record<string, unknown>): FinishResult => ({
   summary: asString(args['summary'], 'No summary provided'),
   rootCause: asString(args['rootCause'], 'Unknown'),
@@ -49,4 +63,7 @@ export const normalizeFinishResult = (args: Record<string, unknown>): FinishResu
   stepsToReproduce: (args['stepsToReproduce'] as string[] | undefined) ?? [],
   evidence: extractEvidence(args['evidence'], args),
   suggestedFix: normalizeSuggestedFix(args['suggestedFix']),
+  codeLocation: normalizeCodeLocation(args['codeLocation']),
+  networkFindings: Array.isArray(args['networkFindings']) ? (args['networkFindings'] as string[]) : undefined,
+  timeline: Array.isArray(args['timeline']) ? (args['timeline'] as string[]) : undefined,
 });

@@ -1,0 +1,7 @@
+[GET] https://crashed-website.pages.dev/api/stats => [200] 
+[GET] https://crashed-website.pages.dev/api/cart => [200] 
+[GET] https://crashed-website.pages.dev/api/products?search=&page=1&category=all => [200] 
+[POST] https://crashed-website.pages.dev/api/cart/add => [200] 
+[GET] https://crashed-website.pages.dev/api/cart => [200] 
+[POST] https://crashed-website.pages.dev/api/coupon/validate => [200] 
+[POST] https://crashed-website.pages.dev/api/coupon/validate => [200] 

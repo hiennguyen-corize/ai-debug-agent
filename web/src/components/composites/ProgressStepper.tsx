@@ -9,6 +9,7 @@ const phases = [
   { id: 'scouting', label: 'Scout' },
   { id: 'investigating', label: 'Plan' },
   { id: 'source_analysis', label: 'Execute' },
+  { id: 'reflecting', label: 'Reflect' },
   { id: 'synthesizing', label: 'Report' },
 ]
 

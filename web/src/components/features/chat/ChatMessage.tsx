@@ -10,6 +10,7 @@ import { ErrorEvent } from './events/ErrorEvent'
 import { SourceMapResolvedEvent, SourceMapFailedEvent } from './events/SourceMapEvent'
 import { ScreenshotEvent } from './events/ScreenshotEvent'
 import { LlmUsageEvent } from './events/LlmUsageEvent'
+import { WaitingForInputEvent } from './events/WaitingForInputEvent'
 
 function EventRouter({ event }: { event: AgentEvent }) {
   switch (event.type) {
@@ -22,6 +23,7 @@ function EventRouter({ event }: { event: AgentEvent }) {
     case 'sourcemap_failed': return <SourceMapFailedEvent event={event} />
     case 'screenshot_captured': return <ScreenshotEvent event={event} />
     case 'llm_usage': return <LlmUsageEvent event={event} />
+    case 'waiting_for_input': return <WaitingForInputEvent event={event} />
     default: return null
   }
 }

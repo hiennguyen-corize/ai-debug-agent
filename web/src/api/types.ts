@@ -8,6 +8,7 @@ export type AgentEvent =
   | { type: 'sourcemap_failed'; bundleUrl: string; reason: string }
   | { type: 'investigation_phase'; phase: string }
   | { type: 'screenshot_captured'; agent: string; data: string }
+  | { type: 'waiting_for_input'; agent: string; prompt: string }
 
 export type Evidence = {
   type: string
@@ -23,7 +24,9 @@ export type InvestigationReport = {
   reproSteps: string[]
   evidence: Evidence[]
   suggestedFix?: { file: string; line: number; before: string; after: string; explanation: string } | null
-  codeLocation?: { file: string; line: number; snippet?: string } | null
+  codeLocation?: { file: string; line: number; column?: number; snippet?: string } | null
+  networkFindings?: string[]
+  timeline?: string[]
   dataFlow?: string
   durationMs?: number
   timestamp?: string

@@ -1,5 +1,5 @@
 /**
- * Agent loop helpers — LLM retry, result parsing, sliding window.
+ * Agent loop helpers — LLM retry, result parsing, smart context compression.
  */
 
 import type OpenAI from 'openai';
@@ -8,6 +8,7 @@ import { AGENT_NAME } from '@ai-debug/shared';
 
 const LLM_MAX_RETRIES = 2;
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_ERROR_PATTERNS = /timeout|econnreset|econnrefused|socket hang up|fetch failed/i;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
 
@@ -33,9 +34,11 @@ export const callLLMWithRetry = async (
       });
     } catch (err) {
       const statusCode = getStatusCode(err);
-      const isRetryable = statusCode !== null && RETRYABLE_STATUS_CODES.has(statusCode);
+      const isRetryableStatus = statusCode !== null && RETRYABLE_STATUS_CODES.has(statusCode);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const isRetryableError = RETRYABLE_ERROR_PATTERNS.test(errorMsg);
 
-      if (!isRetryable || attempt === LLM_MAX_RETRIES) throw err;
+      if ((!isRetryableStatus && !isRetryableError) || attempt === LLM_MAX_RETRIES) throw err;
 
       const delayMs = 2000 * (attempt + 1);
       deps.eventBus.emit({
@@ -71,8 +74,9 @@ export const stringifyResult = (result: unknown): string => {
 };
 
 /**
- * Sliding window — replace old tool results with short summaries
+ * Sliding window — replace old tool results with compressed summaries
  * to keep the messages array from growing unbounded.
+ * Uses type-aware compression to preserve key signals.
  */
 export const trimOldToolResults = (
   messages: { role: string; content?: string | null | undefined }[],
@@ -96,9 +100,42 @@ export const trimOldToolResults = (
 
     if (msg.role === 'tool' && seenAssistant <= trimBefore) {
       const content = msg.content ?? '';
-      if (content.length > 200) {
-        msg.content = content.slice(0, 150) + '\n…(old result trimmed)';
+      if (content.length > 300) {
+        msg.content = compressOldResult(content);
       }
     }
   }
+};
+
+/** Compress an old tool result to keep key signals while reducing size. */
+export const compressOldResult = (content: string): string => {
+  if (content.length <= 300) return content;
+
+  const lines = content.split('\n');
+
+  // Network results → keep status codes + URLs
+  if (content.includes('HTTP/') || content.includes('Status:') || content.includes('status:')) {
+    const kept = lines.filter(l =>
+      (/status|url|error|failed|\d{3}/i).test(l),
+    ).slice(0, 5);
+    return kept.length > 0 ? kept.join('\n') + '\n…(compressed)' : content.slice(0, 200) + '\n…(compressed)';
+  }
+
+  // Console errors → already clustered, keep first 5 lines
+  if (content.includes('console.') || content.includes('[error]') || content.includes('TypeError') || content.includes('Error:')) {
+    return lines.slice(0, 5).join('\n') + '\n…(compressed)';
+  }
+
+  // Source code snippet → keep file:line + context lines
+  if (content.includes('function ') || content.includes('const ') || content.includes('=>')) {
+    return lines.slice(0, 6).join('\n') + '\n…(compressed)';
+  }
+
+  // Snapshot → keep summary line only
+  if (content.includes('[snapshot:')) {
+    return (lines[0] ?? content.slice(0, 200)) + '\n…(compressed)';
+  }
+
+  // Fallback
+  return content.slice(0, 200) + '\n…(compressed)';
 };

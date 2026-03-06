@@ -10,11 +10,13 @@ import { runAgentLoop, type FinishResult } from '#agent/agent-loop.js';
 import type { InvestigationRequest, InvestigationReport, AgentEvent } from '@ai-debug/shared';
 import type { McpCall } from '#agent/mcp-bridge.js';
 import { createPlaywrightBridge } from '#agent/playwright-bridge.js';
+import type { MessageQueue } from '#agent/message-queue.js';
 
 export type InvestigationDeps = {
   mcpCall: McpCall;
   onEvent?: (event: AgentEvent) => void;
   configOverrides?: Record<string, unknown> | undefined;
+  messageQueue?: MessageQueue | undefined;
 };
 
 const buildReport = (result: FinishResult, url: string, startTime: number): InvestigationReport => ({
@@ -33,6 +35,11 @@ const buildReport = (result: FinishResult, url: string, startTime: number): Inve
       description: e,
       data: e,
     })),
+    ...(result.networkFindings ?? []).map((f) => ({
+      type: 'network_finding' as const,
+      description: f,
+      data: f,
+    })),
   ],
   suggestedFix: result.suggestedFix !== undefined ? {
     file: 'unknown',
@@ -41,7 +48,9 @@ const buildReport = (result: FinishResult, url: string, startTime: number): Inve
     after: '',
     explanation: result.suggestedFix,
   } : null,
-  codeLocation: null,
+  codeLocation: result.codeLocation ?? null,
+  networkFindings: result.networkFindings ?? [],
+  timeline: result.timeline ?? [],
   dataFlow: '',
   hypotheses: [],
   cannotDetermine: false,
@@ -81,6 +90,8 @@ export const runInvestigationPipeline = async (
       mcpCall: deps.mcpCall,
       eventBus,
       maxIterations: config.agent.maxIterations,
+      mode: request.mode,
+      messageQueue: deps.messageQueue,
     });
 
     if (result === null) return null;

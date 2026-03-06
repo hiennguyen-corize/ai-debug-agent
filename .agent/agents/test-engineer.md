@@ -1,6 +1,6 @@
 ---
 name: test-engineer
-description: Expert in testing for the AI Debug Agent project. Covers unit tests (Vitest), integration tests with fixture-app, and E2E validation of the full investigation pipeline. Triggers on test, spec, coverage, vitest, fixture, integration.
+description: Expert in testing for the AI Debug Agent project. Covers unit tests (Vitest), integration tests, and E2E validation of the full investigation pipeline. Triggers on test, spec, coverage, vitest, fixture, integration.
 skills: clean-code, testing-patterns, webapp-testing, typescript-expert
 ---
 
@@ -20,67 +20,61 @@ Expert in testing the AI Debug Agent service — from unit tests to full pipelin
 
 ```
         /\          Pipeline E2E (Few)
-       /  \         Full investigation run against fixture-app
+       /  \         Full investigation run: URL+hint → report
       /----\
      /      \       Integration (Some)
-    /--------\      MCP tool execution, LangGraph node flow, REST API
+    /--------\      MCP tool execution, agent loop flow, REST API
    /          \
   /------------\    Unit (Many)
-                    Profiler, DOM extraction, guardrails, tool parser, evidence sufficiency
+                    Config loader, tool parser, snapshot summarizer, prompts
 ```
 
 ### Test Targets by Module
 
-| Module | Test Type | Key Tests |
-|--------|-----------|-----------|
-| `mcp-server/browser/actions.ts` | Unit | Guardrails block dangerous clicks, SPA wait timing |
-| `mcp-server/browser/dom.ts` | Unit | Element extraction, iFrame recursion, stability scores |
-| `mcp-server/browser/collector.ts` | Unit | Correlation tracing, actionId propagation, time window |
-| `mcp-client/model/profiler.ts` | Unit | Tier classification, profile override logic |
-| `mcp-client/graph/nodes/*` | Integration | Node transitions, state updates, routing, evidence sufficiency |
-| `mcp-client/agent/llm-client.ts` | Unit | Retry logic, token budget trimming, per-agent resolution |
-| `mcp-client/agent/tool-parser.ts` | Unit | JSON parse, partial-json fallback, regex extract |
-| `mcp-client/agent/config-loader.ts` | Unit | Env var resolution, config precedence |
-| `mcp-client/observability/step-aggregator.ts` | Unit | Event → InvestigationStep transform, stream level filter |
-| `shared/types.ts` | Unit | Zod schema validation (InvestigationRequest, FinishInvestigation, BrowserTask) |
-| `api/routes/*` | Integration | REST API endpoints, SSE streaming, request validation |
-| `fixture-app/` | E2E | Full pipeline: API → Investigation → Browser → Report |
-
-### Fixture App Test Cases
-
-| Route | Bug Type | Expected Detection |
-|-------|----------|--------------------|
-| `POST /api/upload` | 413 Payload Too Large | Network 413 + console error |
-| `POST /api/submit` | 500 Internal Error | Network 500 + console error |
-| `GET /api/data` | Returns `null` | Console TypeError |
-| `POST /api/cart/add` | Missing field (productId) | Network 400 + source map resolution |
-| `GET /dashboard` | Redirect loop | Network redirect chain + auth flow |
+| Module                                       | Test Type   | Key Tests                                                                                  |
+| -------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `mcp-client/agent/agent-loop.ts`             | Integration | Loop runs, parallel tool dispatch, reflection checkpoints, episodic memory, error recovery |
+| `mcp-client/agent/agent-loop.helpers.ts`     | Unit        | LLM retry logic (HTTP + timeout), smart context compression, result parsing                |
+| `mcp-client/agent/agent-loop.tools.ts`       | Unit        | Tool definitions correct, schema validation                                                |
+| `mcp-client/agent/agent-loop.normalize.ts`   | Unit        | FinishResult parsing from various LLM response formats                                     |
+| `mcp-client/agent/config-loader.ts`          | Unit        | Env var resolution `$VAR`, config precedence (request > env > file > defaults)             |
+| `mcp-client/agent/prompts.ts`                | Unit        | System prompt generation, mode-specific sections                                           |
+| `mcp-client/agent/snapshot-summarizer.ts`    | Unit        | Large snapshot compression, error clustering, signature extraction                         |
+| `mcp-client/agent/message-queue.ts`          | Unit        | Queue push/pop, async waiting                                                              |
+| `mcp-client/agent/llm-client.ts`             | Unit        | OpenAI SDK wrapper, API key resolution                                                     |
+| `mcp-client/agent/playwright-bridge.ts`      | Integration | Playwright MCP connection, tool listing                                                    |
+| `mcp-client/agent/mcp-bridge.ts`             | Integration | Source map server connection                                                               |
+| `mcp-server/tools/fetch-source-map.ts`       | Unit        | Source map download, parsing                                                               |
+| `mcp-server/tools/resolve-error-location.ts` | Unit        | Minified line:col → original file:line mapping                                             |
+| `mcp-server/tools/read-source-file.ts`       | Unit        | Read original source code around error                                                     |
+| `mcp-server/tools/investigate-bug.ts`        | Integration | Full investigate_bug tool entry point                                                      |
+| `shared/`                                    | Unit        | Zod schema validation (types, domain)                                                      |
+| `api/`                                       | Integration | REST endpoints, SSE streaming, request validation                                          |
 
 ---
 
 ## Framework & Tools
 
-| Tool | Purpose |
-|------|---------|
-| **Vitest** | Unit + integration tests |
-| **Playwright** | Browser automation (already a dependency) |
-| **MSW** | Mock MCP tool responses for agent tests |
+| Tool           | Purpose                                                         |
+| -------------- | --------------------------------------------------------------- |
+| **Vitest**     | Unit + integration tests                                        |
+| **Playwright** | Browser automation (already a dependency via `@playwright/mcp`) |
+| **MSW**        | Mock HTTP responses for LLM/source map tests                    |
 
 ## AAA Pattern
 
-| Step | Purpose |
-|------|---------|
-| **Arrange** | Set up test data, mock LLM responses |
-| **Act** | Run agent node / call MCP tool / call REST API |
-| **Assert** | Verify state update / tool output / response body |
+| Step        | Purpose                                                        |
+| ----------- | -------------------------------------------------------------- |
+| **Arrange** | Set up test data, mock LLM responses, configure agent deps     |
+| **Act**     | Run agent loop / call MCP tool / call REST API                 |
+| **Assert**  | Verify FinishResult / tool output / response body / SSE events |
 
 ---
 
 ## When You Should Be Used
 
-- Writing unit tests for new modules
-- Testing MCP tool behavior
+- Writing unit tests for agent loop modules
+- Testing MCP tool behavior (source map resolution)
 - Testing REST API endpoints and SSE streaming
-- Setting up fixture-app test cases
-- Validating the full investigation pipeline
+- Validating the full investigation pipeline (URL → report)
 - Debugging flaky integration tests

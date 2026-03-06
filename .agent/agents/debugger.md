@@ -22,20 +22,25 @@ skills: clean-code, systematic-debugging, typescript-expert
 
 ## Project Context
 
-This is the **AI Debug Agent** — an Investigation Service that automates web app debugging using:
-- **Investigation-First Architecture**: Scout → Investigator → Explorer → Synthesis
-- **MCP Server**: Exposes browser tools + `investigate_bug` tool via MCP
+This is the **AI Debug Agent** — an automated web app debugging service using:
+
+- **Single Agent Loop**: One LLM, one browser, one conversation — no multi-agent orchestration
+- **Budget-Aware Reflection Checkpoints**: REFLECT→EVALUATE→DECIDE every 10 iters with escalating urgency, force finish at 50
+- **Deep Analysis**: Timeline → Hypothesize & Test → Source Maps → State Inspection → Causal Reasoning
+- **MCP Server**: Exposes `investigate_bug` tool + source map tools via stdio
 - **REST API**: Hono server with SSE streaming for remote consumers
-- **LangGraph.js**: Orchestrates investigation flow with checkpointing
-- **Playwright**: Headless browser automation
-- **Model Auto-Profiler**: Adapts to different LLM tiers (Tier 1/2/3)
+- **Playwright MCP**: Browser automation via `@playwright/mcp`
+- **Interactive / Autonomous modes**: `ask_user` tool (uncertainty-based) vs self-assume
 
 Key files to understand:
-- `specs.md` — Full project specification v4.1
-- `mcp-server/src/browser/actions.ts` — Guardrails + SPA handling
-- `mcp-server/src/browser/collector.ts` — Correlation tracing (actionId)
-- `mcp-client/src/graph/` — LangGraph state machine
-- `mcp-client/src/model/profiler.ts` — Model tier classification
+
+- `ARCHITECTURE.md` — Architecture v7.0, single agent loop design
+- `mcp-client/src/agent/agent-loop.ts` — Main loop: LLM call → tool dispatch → checkpoints
+- `mcp-client/src/agent/agent-loop.helpers.ts` — LLM retry (HTTP + timeout/network), result parsing, smart context compression
+- `mcp-client/src/agent/agent-loop.tools.ts` — Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET
+- `mcp-client/src/agent/prompts.ts` — System prompt: WORKFLOW, DEEP ANALYSIS, HYPOTHESIS TRACKING, EVENT TIMELINE, CAUSAL REASONING, STATE INSPECTION
+- `mcp-client/src/agent/config-loader.ts` — 3-layer config: file → env → request → defaults
+- `mcp-server/src/tools/` — Source map tools + investigate_bug entry point
 
 ---
 
@@ -48,13 +53,13 @@ PHASE 1: REPRODUCE
   • Document expected vs actual behavior
 
 PHASE 2: ISOLATE
-  • Which component? (API / MCP Server / Agent / Graph / Profiler)
+  • Which component? (Agent Loop / MCP Server / API / Playwright Bridge / Config)
   • When did it start? What changed?
   • Create minimal reproduction
 
 PHASE 3: UNDERSTAND (Root Cause)
   • Apply "5 Whys" technique
-  • Trace data flow through the investigation pipeline
+  • Trace data flow: URL+hint → agentLoop → LLM → tool dispatch → FinishResult → report
   • Identify the actual bug, not the symptom
 
 PHASE 4: FIX & VERIFY
@@ -68,47 +73,46 @@ PHASE 4: FIX & VERIFY
 
 ## Bug Categories for this Project
 
-### Investigation Pipeline Issues
+### Agent Loop Issues
 
-| Symptom | Investigation |
-|---------|--------------|
-| Scout doesn't detect errors | Check console/network collector, SPA wait timing |
-| Investigator loops forever | Check routing function, maxIterations, evidence sufficiency criteria |
-| Explorer returns empty results | Check `dom.ts` extraction, selector stability score, iFrame recursion |
-| Hypothesis confidence stuck | Check evidence sufficiency rules (min 2 types, direct observation) |
-| FinishInvestigation payload invalid | Check `FinishInvestigationSchema` Zod validation, retry count |
-| LLM returns malformed output | Check `tool-parser.ts` fallback chain |
+| Symptom                                 | Investigation                                                        |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| Agent loops forever                     | Check maxIterations, reflection checkpoints, force finish at 49      |
+| Agent doesn't call finish_investigation | Check prompts.ts workflow, reflection checkpoint injection           |
+| Tool call parsing fails                 | Check agent-loop.normalize.ts, LLM response format                   |
+| Context window exceeded                 | Check smart compression in agent-loop.helpers.ts                     |
+| Snapshot too large                      | Check snapshot-summarizer.ts compression                             |
+| LLM retries exhausted                   | Check retry logic in agent-loop.helpers.ts (retries 429/500/timeout) |
 
 ### MCP Server Issues
 
-| Symptom | Investigation |
-|---------|--------------|
-| Tool not responding | Check MCP stdio transport, tool registry |
-| Guardrail blocks valid action | Check `DANGEROUS_KEYWORDS`, allowList config |
-| DOM extraction incomplete | Check iFrame recursion, element limit from profiler |
-| SPA wait too short/long | Check `spaWaitMs` per tier, config override |
-| Correlation tracing wrong | Check `collector.ts` time window, actionId propagation |
+| Symptom                        | Investigation                                            |
+| ------------------------------ | -------------------------------------------------------- |
+| Source map resolution fails    | Check fetch-source-map.ts, resolve-error-location.ts     |
+| Tool not responding            | Check MCP stdio transport, tool registration in index.ts |
+| investigate_bug hangs          | Check investigate-bug.ts, mcp-bridge connection          |
+| read_source_file returns empty | Check read-source-file.ts, file path resolution          |
 
 ### Service Layer Issues
 
-| Symptom | Investigation |
-|---------|--------------|
-| REST API 500 | Check Hono routes, InvestigationRequestSchema validation |
-| SSE stream disconnects | Check EventBus subscription, StepAggregator, connection keepalive |
-| MCP progress not streaming | Check `notifications/message` emit in `investigate_bug` tool |
-| Config override not working | Check precedence: request > env > file > defaults |
+| Symptom                     | Investigation                                                         |
+| --------------------------- | --------------------------------------------------------------------- |
+| REST API 500                | Check Hono routes, request validation                                 |
+| SSE stream disconnects      | Check EventBus subscription, connection keepalive                     |
+| Config override not working | Check precedence: request > env > file > defaults in config-loader.ts |
+| Interactive mode blocked    | Check message-queue.ts, ask_user tool, waiting_for_input event        |
 
 ---
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
-|----------|-------|
+| ❌ Don't                     | ✅ Do                    |
+| ---------------------------- | ------------------------ |
 | Random changes hoping to fix | Systematic investigation |
-| Ignore stack traces | Read every line |
-| Fix symptoms only | Find root cause |
-| No regression test | Always add test |
-| Multiple changes at once | One change, then verify |
+| Ignore stack traces          | Read every line          |
+| Fix symptoms only            | Find root cause          |
+| No regression test           | Always add test          |
+| Multiple changes at once     | One change, then verify  |
 
 ---
 

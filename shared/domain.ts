@@ -2,7 +2,12 @@
  * Investigation domain types.
  */
 
-export type InvestigationMode = 'interactive' | 'autonomous';
+export const INVESTIGATION_MODE = {
+  INTERACTIVE: 'interactive',
+  AUTONOMOUS: 'autonomous',
+} as const;
+
+export type InvestigationMode = (typeof INVESTIGATION_MODE)[keyof typeof INVESTIGATION_MODE];
 
 export type SourceMapResolution = {
   bundleUrl: string;
@@ -45,14 +50,23 @@ export type Evidence = {
   data?: unknown;
 };
 
+export type CodeLocation = {
+  file: string;
+  line: number;
+  column?: number | undefined;
+  snippet?: string | undefined;
+};
+
 export type InvestigationReport = {
   summary: string;
   rootCause: string;
-  codeLocation: SourceMapResolution | null;
+  codeLocation: CodeLocation | null;
   dataFlow: string;
   suggestedFix: CodeAnalysis['suggestedFix'];
   reproSteps: string[];
   evidence: Evidence[];
+  networkFindings: string[];
+  timeline: string[];
   hypotheses: never[];
   severity: ReportSeverity;
   cannotDetermine: boolean;

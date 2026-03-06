@@ -22,3 +22,7 @@ export const createSSE = (threadId: string): EventSource => {
   const apiKey = localStorage.getItem('ai-debug-api-key') ?? ''
   return new EventSource(`/api/investigate/${threadId}/stream?apiKey=${apiKey}`)
 }
+
+export const sendMessage = async (threadId: string, message: string): Promise<void> => {
+  await api.post(`investigate/${threadId}/message`, { json: { message } }).json()
+}

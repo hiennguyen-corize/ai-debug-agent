@@ -7,6 +7,9 @@ import type { EventBus } from '#observability/event-bus.js';
 import type { LLMClient } from '#agent/llm-client.js';
 import type { McpCall } from '#agent/mcp-bridge.js';
 
+import type { MessageQueue } from '#agent/message-queue.js';
+import type { InvestigationMode } from '@ai-debug/shared';
+
 export type FinishResult = {
   summary: string;
   rootCause: string;
@@ -17,6 +20,9 @@ export type FinishResult = {
     networkErrors: string[];
   };
   suggestedFix?: string | undefined;
+  codeLocation?: { file: string; line: number; column?: number | undefined; snippet?: string | undefined } | undefined;
+  networkFindings?: string[] | undefined;
+  timeline?: string[] | undefined;
 };
 
 export type AgentLoopDeps = {
@@ -26,4 +32,6 @@ export type AgentLoopDeps = {
   mcpCall: McpCall;
   eventBus: EventBus;
   maxIterations?: number | undefined;
+  mode?: InvestigationMode | undefined;
+  messageQueue?: MessageQueue | undefined;
 };

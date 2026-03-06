@@ -84,5 +84,22 @@ export const createInvestigateRoute = (service: ThreadService): Hono => {
     });
   });
 
+  route.post('/:threadId/message', async (c) => {
+    const threadId = c.req.param('threadId');
+    const thread = service.getThread(threadId);
+    if (thread === undefined) return notFound(c, 'Thread not found');
+
+    const body = (await c.req.json()) as { message?: string };
+    const message = body.message;
+    if (typeof message !== 'string' || message.trim() === '') {
+      return badRequest(c, 'message is required');
+    }
+
+    const sent = service.sendMessage(threadId, message.trim());
+    if (!sent) return badRequest(c, 'Thread is not in interactive mode or not running');
+
+    return ok(c, { sent: true });
+  });
+
   return route;
 };

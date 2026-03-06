@@ -31,6 +31,7 @@ export function ChatInput() {
       report: null,
       error: null,
       createdAt: Date.now(),
+      isWaitingForInput: false,
     }
 
     addInvestigation(investigation)

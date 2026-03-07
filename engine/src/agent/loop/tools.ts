@@ -45,13 +45,27 @@ export const FINISH_TOOL: OpenAI.Chat.ChatCompletionTool = {
           items: { type: 'string' },
           description: 'Ordered sequence of events leading to the bug (e.g. "[action] Click Apply", "[network] POST /coupon → 200", "[console] TypeError")',
         },
+        hypotheses: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Hypothesis ID (e.g. "H1")' },
+              text: { type: 'string', description: 'What you hypothesized' },
+              status: { type: 'string', enum: ['confirmed', 'rejected', 'plausible', 'untested'] },
+            },
+            required: ['id', 'text', 'status'],
+          },
+          description: 'Hypotheses explored during investigation and their final status',
+        },
+        conclusion: { type: 'string', description: 'Final conclusion summarizing the investigation outcome' },
       },
       required: ['summary', 'rootCause', 'severity', 'stepsToReproduce', 'evidence'],
     },
   },
 };
 
-const SOURCE_MAP_TOOL_NAMES = new Set(['fetch_source_map', 'resolve_error_location', 'read_source_file']);
+const SOURCE_MAP_TOOL_NAMES = new Set(['fetch_source_map', 'resolve_error_location']);
 
 export const isSourceMapTool = (name: string): boolean => SOURCE_MAP_TOOL_NAMES.has(name);
 
@@ -84,22 +98,6 @@ export const SOURCE_MAP_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           column: { type: 'number', description: 'Column number in the minified file' },
         },
         required: ['bundleUrl', 'line', 'column'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_source_file',
-      description: 'Read original source code lines from a file path resolved by source maps.',
-      parameters: {
-        type: 'object',
-        properties: {
-          filePath: { type: 'string', description: 'Path to the source file' },
-          lineFrom: { type: 'number', description: 'Start line (1-indexed)' },
-          lineTo: { type: 'number', description: 'End line (1-indexed)' },
-        },
-        required: ['filePath', 'lineFrom', 'lineTo'],
       },
     },
   },

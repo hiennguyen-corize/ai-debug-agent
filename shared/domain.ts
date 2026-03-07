@@ -76,7 +76,8 @@ export type InvestigationReport = {
   evidence: Evidence[];
   networkFindings: string[];
   timeline: string[];
-  hypotheses: never[];
+  hypotheses: { id: string; text: string; status: 'confirmed' | 'rejected' | 'plausible' | 'untested' }[];
+  conclusion: string;
   severity: ReportSeverity;
   cannotDetermine: boolean;
   assumptions: string[];

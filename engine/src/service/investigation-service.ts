@@ -52,7 +52,12 @@ const buildReport = (result: FinishResult, url: string, startTime: number): Inve
   networkFindings: result.networkFindings ?? [],
   timeline: result.timeline ?? [],
   dataFlow: '',
-  hypotheses: [],
+  hypotheses: (result.hypotheses ?? []).map(h => ({
+    id: h.id,
+    text: h.text,
+    status: h.status as 'confirmed' | 'rejected' | 'plausible' | 'untested',
+  })),
+  conclusion: result.conclusion ?? '',
   cannotDetermine: false,
   assumptions: [],
   timestamp: new Date().toISOString(),

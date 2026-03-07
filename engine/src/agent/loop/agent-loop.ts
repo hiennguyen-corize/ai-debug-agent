@@ -20,10 +20,68 @@ const SLIDING_WINDOW_SIZE = 5;
 const STALL_THRESHOLD = 3;
 const MAX_STALL_COUNT = 5;
 
-type TriedAction = { tool: string; argsKey: string; success: boolean; iteration: number };
+type TriedAction = { tool: string; argsKey: string; sig: string; success: boolean; iteration: number };
 
 const toArgsKey = (args: Record<string, unknown>): string =>
   JSON.stringify(args).slice(0, 100);
+
+const buildActionSig = (toolName: string, args: Record<string, unknown>): string => {
+  if (toolName === 'browser_navigate') {
+    const url = typeof args['url'] === 'string' ? args['url'] : '';
+    try { return `nav:${new URL(url, 'http://x').pathname}`; } catch { return `nav:${url}`; }
+  }
+  if (toolName === 'browser_click') {
+    const ref = typeof args['ref'] === 'string' ? args['ref'] : typeof args['selector'] === 'string' ? args['selector'] : '';
+    return `click:${ref}`;
+  }
+  if (toolName === 'browser_type') {
+    const ref = typeof args['ref'] === 'string' ? args['ref'] : '';
+    const text = typeof args['text'] === 'string' ? args['text'] : '';
+    return `type:${ref}:${text}`;
+  }
+  return `${toolName}:${JSON.stringify(args).slice(0, 60)}`;
+};
+
+const detectCircularPattern = (triedActions: TriedAction[]): { detected: boolean; pattern?: string } => {
+  if (triedActions.length < 6) return { detected: false };
+
+  const sigs = triedActions.map(a => a.sig);
+
+  // Check repeated sequences of length 2–5
+  for (let len = 2; len <= 5; len++) {
+    if (sigs.length < len * 2) continue;
+    const tail = sigs.slice(-len * 2);
+    const first = tail.slice(0, len).join('|');
+    const second = tail.slice(len).join('|');
+    if (first === second) {
+      return { detected: true, pattern: first };
+    }
+  }
+
+  // Fallback: uniqueRatio over 20 recent actions (wider than before)
+  const window = sigs.slice(-20);
+  if (window.length >= 10) {
+    const uniqueRatio = new Set(window).size / window.length;
+    if (uniqueRatio < 0.35) {
+      return { detected: true, pattern: `low-unique:${uniqueRatio.toFixed(2)}` };
+    }
+  }
+
+  return { detected: false };
+};
+
+const MAX_SAME_SIG_FAILURES = 3;
+
+const getConsecutiveSigFailures = (triedActions: TriedAction[], sig: string): number => {
+  let count = 0;
+  for (let i = triedActions.length - 1; i >= 0; i--) {
+    const a = triedActions[i];
+    if (a === undefined) continue;
+    if (a.sig === sig && !a.success) count++;
+    else if (a.sig === sig && a.success) break;
+  }
+  return count;
+};
 
 const FORCE_FINISH_MESSAGE = 'You have reached the maximum iterations. You MUST call finish_investigation NOW. If you found a bug, report it. If not, report summary="No bug found", severity="low". Do NOT call any other tool — ONLY finish_investigation.';
 
@@ -31,7 +89,6 @@ const STALL_FINISH_MESSAGE = 'You have made no progress for multiple consecutive
 
 const CRASHED_PAGE_GUIDANCE = 'The page appears crashed or empty (blank snapshot). If you already have error evidence from previous steps, call finish_investigation NOW with what you have. Do NOT re-navigate to reproduce — use the evidence you already collected.';
 
-const CIRCULAR_NAV_MESSAGE = '⚠️ Detected circular navigation pattern — you are repeating the same sequence of actions. If you already found evidence of a bug, call finish_investigation immediately. Repeating the same steps will not yield new information.';
 
 export const runAgentLoop = async (
   url: string,
@@ -63,97 +120,119 @@ export const runAgentLoop = async (
   let stallCount = 0;
 
   for (let i = 0; i < maxIterations; i++) {
-    // Continuous budget awareness — inject token usage before LLM call
-    const failedList = triedActions
-      .filter(a => !a.success)
-      .map(a => `${a.tool}(${a.argsKey})`)
-      .slice(-5);
-    const usagePct = Math.round((lastPromptTokens / contextWindow) * 100);
-    const budgetContext = `[Context: ${lastPromptTokens.toLocaleString()}/${contextWindow.toLocaleString()} tokens (${usagePct.toString()}%)]`
-      + (failedList.length > 0 ? ` [Failed: ${failedList.join(', ')}]` : '')
-      + (stallCount >= STALL_THRESHOLD ? ` [⚠ STALLED: ${stallCount.toString()} iterations with no progress — switch approach or finish]` : '');
+    try {
+      // Continuous budget awareness — inject token usage before LLM call
+      const failedList = triedActions
+        .filter(a => !a.success)
+        .map(a => `${a.tool}(${a.argsKey})`)
+        .slice(-5);
+      const usagePct = Math.round((lastPromptTokens / contextWindow) * 100);
+      const budgetContext = `[Context: ${lastPromptTokens.toLocaleString()}/${contextWindow.toLocaleString()} tokens (${usagePct.toString()}%)]`
+        + (failedList.length > 0 ? ` [Failed: ${failedList.join(', ')}]` : '')
+        + (stallCount >= STALL_THRESHOLD ? ` [⚠ STALLED: ${stallCount.toString()} iterations with no progress — switch approach or finish]` : '');
 
-    const budgetTag = '<!--budget-->';
-    const existingIdx = messages.findIndex(m => m.role === 'user' && typeof m.content === 'string' && m.content.startsWith(budgetTag));
-    const budgetMsg: OpenAI.Chat.ChatCompletionMessageParam = { role: 'user', content: `${budgetTag}${budgetContext}` };
-    if (existingIdx >= 0) {
-      messages[existingIdx] = budgetMsg;
-    } else {
-      messages.splice(1, 0, budgetMsg);
-    }
+      const budgetTag = '<!--budget-->';
+      const existingIdx = messages.findIndex(m => m.role === 'user' && typeof m.content === 'string' && m.content.startsWith(budgetTag));
+      const budgetMsg: OpenAI.Chat.ChatCompletionMessageParam = { role: 'user', content: `${budgetTag}${budgetContext}` };
+      if (existingIdx >= 0) {
+        messages[existingIdx] = budgetMsg;
+      } else {
+        messages.splice(1, 0, budgetMsg);
+      }
 
-    const response = await callLLMWithRetry(deps, messages, allTools);
+      const response = await callLLMWithRetry(deps, messages, allTools);
 
-    const choice = response.choices[0];
-    if (choice === undefined) break;
-    const message = choice.message;
-
-    // Track actual token usage for next iteration's budget
-    lastPromptTokens = response.usage?.prompt_tokens ?? lastPromptTokens;
-
-    emitUsage(deps, response);
-
-    if (message.tool_calls === undefined || message.tool_calls.length === 0) {
-      noToolCount++;
-      emitReasoning(deps, message.content);
-      if (noToolCount >= MAX_NO_TOOL_RETRIES) {
-        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: 'Agent stopped calling tools, ending investigation.' });
+      const choice = response.choices[0];
+      if (choice === undefined) {
+        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[EXIT] LLM returned empty choices at iteration ${String(i)}` });
         break;
       }
+      const message = choice.message;
+
+      // Track actual token usage for next iteration's budget
+      lastPromptTokens = response.usage?.prompt_tokens ?? lastPromptTokens;
+
+      emitUsage(deps, response);
+
+      if (message.tool_calls === undefined || message.tool_calls.length === 0) {
+        noToolCount++;
+        emitReasoning(deps, message.content);
+        if (noToolCount >= MAX_NO_TOOL_RETRIES) {
+          deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[EXIT] Agent stopped calling tools after ${String(MAX_NO_TOOL_RETRIES)} retries, ending investigation.` });
+          break;
+        }
+        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[WARN] No tool calls (${String(noToolCount)}/${String(MAX_NO_TOOL_RETRIES)}), prompting agent to continue` });
+        messages.push(message);
+        messages.push({ role: 'user', content: 'Continue by calling the appropriate tools. Do not explain, just call tools.' });
+        continue;
+      }
+
+      noToolCount = 0;
+      emitReasoning(deps, message.content);
       messages.push(message);
-      messages.push({ role: 'user', content: 'Continue by calling the appropriate tools. Do not explain, just call tools.' });
-      continue;
-    }
 
-    noToolCount = 0;
-    emitReasoning(deps, message.content);
-    messages.push(message);
+      const result = await processToolCalls(message.tool_calls, { deps, messages, triedActions, iteration: i, phaseRef });
+      if (result !== null) return result;
 
-    const result = await processToolCalls(message.tool_calls, { deps, messages, triedActions, iteration: i, phaseRef });
-    if (result !== null) return result;
+      // Proactive context management — shrink window as context fills
+      const dynamicWindow = usagePct > 75 ? 1 : usagePct > 50 ? 3 : SLIDING_WINDOW_SIZE;
+      trimOldToolResults(messages as { role: string; content?: string | null | undefined }[], dynamicWindow);
 
-    // Proactive context management — shrink window as context fills
-    const dynamicWindow = usagePct > 75 ? 1 : usagePct > 50 ? 3 : SLIDING_WINDOW_SIZE;
-    trimOldToolResults(messages as { role: string; content?: string | null | undefined }[], dynamicWindow);
+      // Stall detection — consecutive iterations with all tools failing
+      const iterActions = triedActions.filter(a => a.iteration === i);
+      const allFailed = iterActions.length > 0 && iterActions.every(a => !a.success);
+      stallCount = allFailed ? stallCount + 1 : 0;
 
-    // Stall detection — consecutive iterations with all tools failing
-    const iterActions = triedActions.filter(a => a.iteration === i);
-    const allFailed = iterActions.length > 0 && iterActions.every(a => !a.success);
-    stallCount = allFailed ? stallCount + 1 : 0;
-
-    if (stallCount >= MAX_STALL_COUNT) {
-      deps.eventBus.emit({ type: 'investigation_phase', phase: 'reflecting' });
-      phaseRef.value = 'reflecting';
-      messages.push({ role: 'user', content: STALL_FINISH_MESSAGE });
-    }
-
-    // Crash state detection — empty page snapshot means DOM is dead
-    const lastMsg = messages.at(-1);
-    if (lastMsg !== undefined && 'content' in lastMsg && typeof lastMsg.content === 'string') {
-      const content = lastMsg.content;
-      if (content.includes('### Snapshot') && /```yaml\s*\n\s*```/.test(content)) {
-        messages.push({ role: 'user', content: CRASHED_PAGE_GUIDANCE });
+      if (stallCount >= MAX_STALL_COUNT) {
+        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[EXIT] Stalled for ${String(stallCount)} iterations, forcing finish` });
+        deps.eventBus.emit({ type: 'investigation_phase', phase: 'reflecting' });
+        phaseRef.value = 'reflecting';
+        messages.push({ role: 'user', content: STALL_FINISH_MESSAGE });
       }
-    }
 
-    // Circular navigation detection — repeating same tool+args pattern
-    if (triedActions.length >= 8) {
-      const recentKeys = triedActions.slice(-8).map(a => `${a.tool}:${a.argsKey}`);
-      const uniqueRatio = new Set(recentKeys).size / recentKeys.length;
-      if (uniqueRatio < 0.5) {
-        messages.push({ role: 'user', content: CIRCULAR_NAV_MESSAGE });
+      // Crash state detection — empty page snapshot means DOM is dead
+      const lastMsg = messages.at(-1);
+      if (lastMsg !== undefined && 'content' in lastMsg && typeof lastMsg.content === 'string') {
+        const content = lastMsg.content;
+        if (content.includes('### Snapshot') && /```yaml\s*\n\s*```/.test(content)) {
+          messages.push({ role: 'user', content: CRASHED_PAGE_GUIDANCE });
+        }
       }
-    }
 
-    // Safety net: force finish on last iteration
-    if (i === maxIterations - 1) {
-      deps.eventBus.emit({ type: 'investigation_phase', phase: 'reflecting' });
-      phaseRef.value = 'reflecting';
-      messages.push({ role: 'user', content: FORCE_FINISH_MESSAGE });
+      // Circular pattern detection — sequence matching + wide uniqueRatio
+      const circular = detectCircularPattern(triedActions);
+      if (circular.detected) {
+        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[LOOP] Circular pattern detected: ${circular.pattern ?? 'unknown'}` });
+        messages.push({
+          role: 'user',
+          content: `⚠️ LOOP DETECTED: pattern "${circular.pattern ?? 'repeating'}" is repeating. `
+            + 'You MUST either: (1) try a fundamentally different approach, or (2) call finish_investigation with the evidence you have. '
+            + 'Do NOT retry the same sequence again.',
+        });
+      }
+
+      // Safety net: force finish on last iteration
+      if (i === maxIterations - 1) {
+        deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[EXIT] Reached max iterations (${String(maxIterations)}), forcing finish` });
+        deps.eventBus.emit({ type: 'investigation_phase', phase: 'reflecting' });
+        phaseRef.value = 'reflecting';
+        messages.push({ role: 'user', content: FORCE_FINISH_MESSAGE });
+      }
+    } catch (loopErr) {
+      const errMsg = loopErr instanceof Error ? loopErr.message : String(loopErr);
+      const errStack = loopErr instanceof Error ? loopErr.stack ?? '' : '';
+      deps.eventBus.emit({
+        type: 'error',
+        agent: AGENT_NAME.AGENT,
+        message: `[CRASH] Agent loop error at iteration ${String(i)}: ${errMsg}\n${errStack}`,
+      });
+      // Don't break — try emergency finish below
+      break;
     }
   }
 
   // Emergency finish — never return null, always produce partial report
+  deps.eventBus.emit({ type: 'error', agent: AGENT_NAME.AGENT, message: `[EMERGENCY] Loop ended without finish_investigation. Actions: ${String(triedActions.length)}, Messages: ${String(messages.length)}` });
   deps.eventBus.emit({ type: 'investigation_phase', phase: 'synthesizing' });
   return buildEmergencyResult(triedActions, messages);
 };
@@ -224,6 +303,16 @@ const processToolCalls = async (
           return { role: 'tool' as const, tool_call_id: toolCall.id, content: msg };
         }
 
+        // Skip tools that failed too many consecutive times with similar action signature
+        const sig = buildActionSig(toolName, args);
+        const consecutiveFails = getConsecutiveSigFailures(triedActions, sig);
+        if (consecutiveFails >= MAX_SAME_SIG_FAILURES) {
+          const msg = `[SKIPPED] "${toolName}" failed ${String(consecutiveFails)} consecutive times with similar args. Try a fundamentally different approach or call finish_investigation.`;
+          deps.eventBus.emit({ type: 'tool_result', agent: AGENT_NAME.AGENT, tool: toolName, success: false, durationMs: 0, result: msg });
+          triedActions.push({ tool: toolName, argsKey, sig, success: false, iteration });
+          return { role: 'tool' as const, tool_call_id: toolCall.id, content: msg };
+        }
+
         deps.eventBus.emit({ type: 'tool_call', agent: AGENT_NAME.AGENT, tool: toolName, args });
 
         if (isFetchJsSnippetTool(toolName)) {
@@ -234,7 +323,7 @@ const processToolCalls = async (
           const snippet = await fetchJsSnippet({ url, line, context: ctx });
           const elapsed = Date.now() - startMs;
           deps.eventBus.emit({ type: 'tool_result', agent: AGENT_NAME.AGENT, tool: toolName, success: true, durationMs: elapsed, result: snippet.length > 2000 ? snippet.slice(0, 2000) + '\n…(truncated)' : snippet });
-          triedActions.push({ tool: toolName, argsKey, success: true, iteration });
+          triedActions.push({ tool: toolName, argsKey, sig: buildActionSig(toolName, args), success: true, iteration });
           return { role: 'tool' as const, tool_call_id: toolCall.id, content: snippet };
         }
 
@@ -243,7 +332,7 @@ const processToolCalls = async (
           type: 'tool_result', agent: AGENT_NAME.AGENT, tool: toolName, success, durationMs,
           result: resultStr.length > 2000 ? resultStr.slice(0, 2000) + '\n…(truncated)' : resultStr,
         });
-        triedActions.push({ tool: toolName, argsKey, success, iteration });
+        triedActions.push({ tool: toolName, argsKey, sig: buildActionSig(toolName, args), success, iteration });
         return { role: 'tool' as const, tool_call_id: toolCall.id, content: summarizeToolResult(resultStr) };
       }),
     );

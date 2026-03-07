@@ -21,6 +21,8 @@ export type FinishResult = {
   codeLocation?: { file: string; line: number; column?: number | undefined; snippet?: string | undefined } | undefined;
   networkFindings?: string[] | undefined;
   timeline?: string[] | undefined;
+  hypotheses?: { id: string; text: string; status: string }[] | undefined;
+  conclusion?: string | undefined;
 };
 
 export type AgentLoopDeps = {

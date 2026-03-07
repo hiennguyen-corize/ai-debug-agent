@@ -137,21 +137,19 @@ INPUT: URL + hint
 
 ### 4.2 Key Files
 
-| File                      | Role                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `agent-loop.ts`           | Main loop: LLM call → parallel tool dispatch → budget awareness → episodic memory |
-| `agent-loop.helpers.ts`   | LLM retry (HTTP + timeout/network), result parsing, smart context compression     |
-| `agent-loop.tools.ts`     | Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET       |
-| `agent-loop.types.ts`     | FinishResult, AgentLoopDeps types                                                 |
-| `agent-loop.normalize.ts` | Parse LLM args → FinishResult                                                     |
-| `prompts.ts`              | System prompt: OBSERVE→PLAN, INVESTIGATION STRATEGIES, BUDGET AWARENESS           |
-| `llm-client.ts`           | OpenAI SDK wrapper                                                                |
-| `config-loader.ts`        | 3-layer config: file → env → request → defaults                                   |
-| `bridge-factory.ts`       | Centralized MCP bridge creation (subprocess + in-process modes)                   |
-| `playwright-bridge.ts`    | Playwright MCP client connection                                                  |
-| `mcp-bridge.ts`           | MCP Server bridge for source map tools                                            |
-| `message-queue.ts`        | User message queue for interactive mode                                           |
-| `snapshot-summarizer.ts`  | Compress large snapshots for context window                                       |
+| File                      | Role                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `agent-loop.ts`           | Main loop: LLM call → parallel tool dispatch → budget awareness → circular detection → error logging |
+| `agent-loop.helpers.ts`   | LLM retry (HTTP + timeout/network), result parsing, smart context compression                        |
+| `agent-loop.tools.ts`     | Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET                          |
+| `agent-loop.types.ts`     | FinishResult, AgentLoopDeps types                                                                    |
+| `agent-loop.normalize.ts` | Parse LLM args → FinishResult                                                                        |
+| `prompts.ts`              | System prompt: OBSERVE→PLAN, STRATEGIES, BUDGET, EVIDENCE SUFFICIENCY, LANGUAGE                      |
+| `llm-client.ts`           | OpenAI SDK wrapper                                                                                   |
+| `config-loader.ts`        | 3-layer config: file → env → request → defaults                                                      |
+| `playwright-bridge.ts`    | Playwright MCP client connection                                                                     |
+| `message-queue.ts`        | User message queue for interactive mode                                                              |
+| `snapshot-summarizer.ts`  | Compress large snapshots for context window                                                          |
 
 ### 4.3 Continuous Budget Awareness
 
@@ -196,7 +194,7 @@ Token-based is more accurate than iteration-based: one iteration with 5 parallel
 `browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_select_option`, `browser_hover`, `browser_scroll`, `browser_console_messages`, `browser_network_requests`, `browser_wait_for`
 
 **Source Map (code resolution):**
-`fetch_source_map`, `resolve_error_location`, `read_source_file`
+`fetch_source_map`, `resolve_error_location`
 
 **Custom tools:**
 
@@ -230,6 +228,19 @@ FIRST STEP: navigate → snapshot → reproduce hint
 ```
 
 Key difference from fixed workflows: agent adapts to the bug type instead of following prescribed steps.
+
+### 4.7 Loop Hardening
+
+Multiple safety mechanisms prevent the agent from getting stuck or crashing silently:
+
+| Mechanism                   | Description                                                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error logging**           | Every exit path emits tagged events: `[CRASH]`, `[EXIT]`, `[WARN]`, `[EMERGENCY]`, `[LOOP]`, `[SKIPPED]`                                           |
+| **Circular detection**      | Sequence matching (len 2-5) + uniqueRatio over 20-action window (threshold 0.35). Normalized signatures: `nav:/path`, `click:ref`, `type:ref:text` |
+| **Per-sig failure counter** | Consecutive failures for same action signature → auto-skip after 3. Resets on success                                                              |
+| **Stall detection**         | 5 consecutive iterations where all tools fail → force finish                                                                                       |
+| **Evidence sufficiency**    | Prompt teaches agent: console error + location = FINISH, reproduced + network = FINISH. "Calling finish_investigation is NEVER wrong"              |
+| **Emergency finish**        | Loop always returns a `FinishResult` — if agent doesn't call `finish_investigation`, `buildEmergencyResult()` produces a partial report            |
 
 ---
 
@@ -287,7 +298,7 @@ runInvestigationPipeline(request, deps)
   → logger.writeFooter() (token + cost summary)
 ```
 
-Source map tools (`fetch_source_map`, `resolve_error_location`, `read_source_file`) are called directly via `sourceMapCall()` — no subprocess or MCP protocol overhead.
+Source map tools (`fetch_source_map`, `resolve_error_location`) are called directly via `sourceMapCall()` — no subprocess or MCP protocol overhead.
 
 ---
 
@@ -436,18 +447,17 @@ Exposes `investigate_bug` tool via stdio for MCP hosts (Claude, Cursor).
 
 51 source files organized as:
 
-- `tools/` — 7 tool implementations (investigate-bug, fetch-source-map, resolve-error-location, read-source-file, finish-investigation, ask-user, dispatch-browser-task)
-- `sourcemap/` — consumer, fetcher, resolver, tracer, reader, fallback
+- `tools/` — 6 tool implementations (investigate-bug, fetch-source-map, resolve-error-location, finish-investigation, ask-user, dispatch-browser-task)
+- `sourcemap/` — consumer, fetcher, resolver, tracer, fallback
 - `constants/` — tool definitions, browser settings, guardrails, selectors
 - `types/` — actions, browser, DOM, guardrails, network
 
 **Source Map Tools (internal):**
 
-| Tool                     | Description                                |
-| ------------------------ | ------------------------------------------ |
-| `fetch_source_map`       | Download .map file from bundle URL         |
-| `resolve_error_location` | Map minified line:col → original file:line |
-| `read_source_file`       | Read original source code around error     |
+| Tool                     | Description                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `fetch_source_map`       | Download .map file from bundle URL                                            |
+| `resolve_error_location` | Map minified line:col → original file:line (includes surroundingCode snippet) |
 
 ---
 

@@ -67,4 +67,8 @@ export const normalizeFinishResult = (args: Record<string, unknown>): FinishResu
   codeLocation: normalizeCodeLocation(args['codeLocation']),
   networkFindings: Array.isArray(args['networkFindings']) ? (args['networkFindings'] as string[]) : undefined,
   timeline: Array.isArray(args['timeline']) ? (args['timeline'] as string[]) : undefined,
+  hypotheses: Array.isArray(args['hypotheses'])
+    ? (args['hypotheses'] as { id: string; text: string; status: string }[])
+    : undefined,
+  conclusion: typeof args['conclusion'] === 'string' ? args['conclusion'] : undefined,
 });

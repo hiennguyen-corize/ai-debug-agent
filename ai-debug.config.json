@@ -2,7 +2,7 @@
     "llm": {
         "default": {
             "provider": "ollama-cloud",
-            "model": "deepseek-v3.1:671b-cloud",
+            "model": "gpt-oss:120b-cloud",
             "baseURL": "https://ollama.com/v1",
             "apiKey": "$OLLAMA_API_KEY"
         }

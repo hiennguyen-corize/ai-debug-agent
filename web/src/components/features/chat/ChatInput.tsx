@@ -14,6 +14,12 @@ export function ChatInput() {
   const [loading, setLoading] = useState(false)
   const { mode, setMode } = useSettingsStore()
   const { addInvestigation, updateInvestigation, addMessage, connectSSE } = useInvestigationStore()
+  const activeStatus = useInvestigationStore((s) => {
+    const inv = s.investigations.find((i) => i.id === s.activeId)
+    return inv?.status ?? null
+  })
+
+  const isBusy = activeStatus === 'running' || activeStatus === 'queued'
 
   const handleSubmit = useCallback(async () => {
     const trimmedUrl = url.trim()
@@ -48,11 +54,14 @@ export function ChatInput() {
 
     try {
       const result = await startInvestigation(trimmedUrl, hint.trim(), mode)
-      updateInvestigation(invId, { threadId: result.threadId, status: 'running' })
+      const isQueued = result.status === 'queued'
+      updateInvestigation(invId, { threadId: result.threadId, status: isQueued ? 'queued' : 'running' })
       addMessage(invId, {
         id: createMessageId(),
         role: 'system',
-        content: `Investigation started. Thread: \`${result.threadId}\``,
+        content: isQueued
+          ? `Investigation queued (position ${String((result as { position?: number }).position ?? '?')}). Waiting for current investigation to finish.`
+          : `Investigation started. Thread: \`${result.threadId}\``,
         timestamp: Date.now(),
       })
       connectSSE(invId, result.threadId)
@@ -68,6 +77,19 @@ export function ChatInput() {
       setLoading(false)
     }
   }, [url, hint, mode, loading, addInvestigation, updateInvestigation, addMessage, connectSSE])
+
+  if (isBusy) {
+    return (
+      <div className="border-t border-border bg-bg-secondary px-4 py-2">
+        <div className="max-w-3xl mx-auto flex items-center justify-center gap-2 text-xs font-mono text-text-muted">
+          <span className={activeStatus === 'running' ? 'text-worker animate-pulse' : 'text-amber-400 animate-pulse'}>●</span>
+          <span>
+            {activeStatus === 'running' ? '🔍 Agent is investigating...' : '⏳ Queued — waiting for current investigation'}
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="border-t border-border bg-bg-secondary px-4 py-3">

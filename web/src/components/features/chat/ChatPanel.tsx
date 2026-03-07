@@ -2,19 +2,22 @@ import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { useInvestigationStore } from '#stores/investigation-store'
 import type { ChatMessage as ChatMessageType } from '#stores/investigation-store'
 import { SkeletonCard, Button } from '#components/primitives'
-import { AgentGroup, type MessageGroup } from './AgentGroup'
+import { PhaseGroup, type PhaseGroupData } from './PhaseGroup'
 import { ChatMessage } from './ChatMessage'
 import { ReportPanel } from './ReportPanel'
 
 function EmptyState() {
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center space-y-4 max-w-sm px-4 animate-fade-in">
-        <h2 className="text-lg font-semibold text-text-primary font-mono">Debug Agent</h2>
-        <p className="text-sm text-text-muted leading-relaxed">
-          Enter a URL to start investigating. The agent will analyze console errors,
-          network issues, and DOM state to find the root cause.
-        </p>
+      <div className="text-center space-y-6 max-w-md px-4 animate-fade-in">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-text-primary font-mono">Debug Agent</h2>
+          <p className="text-sm text-text-muted leading-relaxed">
+            Enter a URL to start investigating. The agent will analyze console errors,
+            network issues, and DOM state to find the root cause.
+          </p>
+        </div>
+
         <div className="flex justify-center gap-6 text-xs text-text-muted font-mono">
           <span>Navigate</span>
           <span>→</span>
@@ -22,8 +25,27 @@ function EmptyState() {
           <span>→</span>
           <span>Report</span>
         </div>
+
+        <div className="space-y-2">
+          <p className="text-[10px] text-text-muted uppercase tracking-widest font-mono">Try an example</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            <ExampleChip label="crashed-website.pages.dev" />
+          </div>
+        </div>
+
+        <p className="text-[10px] text-text-muted font-mono">
+          Paste a URL above and press Enter to start
+        </p>
       </div>
     </div>
+  )
+}
+
+function ExampleChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono bg-bg-tertiary text-text-secondary border border-border hover:border-accent-primary/30 transition-colors cursor-default select-all">
+      {label}
+    </span>
   )
 }
 
@@ -67,18 +89,21 @@ function InteractiveInput({ investigationId }: { investigationId: string }) {
   )
 }
 
-function groupMessages(messages: ChatMessageType[]): MessageGroup[] {
-  const groups: MessageGroup[] = []
-  let current: MessageGroup | null = null
+function groupByPhase(messages: ChatMessageType[]): PhaseGroupData[] {
+  const groups: PhaseGroupData[] = []
+  let current: PhaseGroupData = { phase: null, messages: [] }
 
   for (const msg of messages) {
-    if (current !== null && current.agent === msg.agent) {
-      current.messages.push(msg)
+    // Phase event starts a new group
+    if (msg.event?.type === 'investigation_phase') {
+      if (current.messages.length > 0) groups.push(current)
+      const phase = (msg.event as { phase: string }).phase
+      current = { phase, messages: [msg] }
     } else {
-      current = { agent: msg.agent, messages: [msg] }
-      groups.push(current)
+      current.messages.push(msg)
     }
   }
+  if (current.messages.length > 0) groups.push(current)
 
   return groups
 }
@@ -91,7 +116,7 @@ export function ChatPanel() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const groups = useMemo(
-    () => (active ? groupMessages(active.messages) : []),
+    () => (active ? groupByPhase(active.messages) : []),
     [active?.messages.length],
   )
 
@@ -131,8 +156,8 @@ export function ChatPanel() {
     <div className="flex-1 overflow-y-auto bg-bg-primary">
       <div className="max-w-3xl mx-auto py-4 px-4 space-y-1">
         {groups.map((group, gi) => (
-          group.agent ? (
-            <AgentGroup
+          group.phase ? (
+            <PhaseGroup
               key={gi}
               group={group}
               isExpanded={isExpanded(gi)}
@@ -148,6 +173,15 @@ export function ChatPanel() {
             </div>
           )
         ))}
+
+        {active.status === 'queued' && (
+          <div className="py-4 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <span className="text-amber-400 animate-pulse">⏳</span>
+              <span className="text-sm text-amber-400 font-mono">Queued — waiting for current investigation to finish</span>
+            </div>
+          </div>
+        )}
 
         {active.status === 'running' && !active.isWaitingForInput && (
           <div className="py-4">

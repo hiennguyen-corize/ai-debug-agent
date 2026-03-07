@@ -3,13 +3,14 @@
  */
 
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import type { ThreadStatus, InvestigationMode } from '@ai-debug/shared';
 
 export const threads = sqliteTable('threads', {
   id: text('id').primaryKey(),
-  status: text('status').$type<'running' | 'done' | 'error'>().notNull().default('running'),
+  status: text('status').$type<ThreadStatus>().notNull().default('running'),
   url: text('url').notNull(),
   hint: text('hint').default(''),
-  mode: text('mode').$type<'interactive' | 'autonomous'>().notNull().default('interactive'),
+  mode: text('mode').$type<InvestigationMode>().notNull().default('interactive'),
   report: text('report'),
   error: text('error'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),

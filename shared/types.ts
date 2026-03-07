@@ -4,6 +4,7 @@
 
 export {
   InvestigationRequestSchema,
+  UserMessageSchema,
 } from './schemas.js';
 
 export type {
@@ -28,6 +29,7 @@ export type {
 
 export {
   REPORT_SEVERITY,
+  THREAD_STATUS,
 } from './domain.js';
 
 export type {
@@ -36,6 +38,7 @@ export type {
   CodeAnalysis,
   CodeLocation,
   ReportSeverity,
+  ThreadStatus,
   InvestigationReport,
   InvestigationMode,
 } from './domain.js';

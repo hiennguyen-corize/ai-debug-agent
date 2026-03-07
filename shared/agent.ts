@@ -41,6 +41,7 @@ export type AgentEvent =
   | { type: 'sourcemap_resolved'; bundleUrl: string; originalFile: string; line: number }
   | { type: 'sourcemap_failed'; bundleUrl: string; reason: string }
   | { type: 'investigation_phase'; phase: InvestigationPhase }
+  | { type: 'investigation_queued'; position: number; message: string }
   | { type: 'screenshot_captured'; agent: AgentName; data: string }
   | { type: 'waiting_for_input'; agent: AgentName; prompt: string };
 

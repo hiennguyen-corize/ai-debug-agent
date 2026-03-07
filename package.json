@@ -8,8 +8,7 @@
   },
   "workspaces": [
     "shared",
-    "mcp-server",
-    "mcp-client",
+    "engine",
     "api",
     "web"
   ],
@@ -22,7 +21,6 @@
     "test:watch": "vitest",
     "check-all": "pnpm typecheck && pnpm lint && pnpm test",
     "dev:api": "npm run dev -w api",
-    "dev:mcp": "npm run dev -w mcp-server",
     "dev": "tsc --build && node api/dist/server.js",
     "start": "node api/dist/server.js",
     "build": "tsc --build"

@@ -15,9 +15,9 @@ Developer gặp bug → mở browser → thao tác → đọc console → đọc
 ### 1.2 Design Philosophy
 
 - **Single agent loop** — one LLM, one browser, one conversation
-- **Budget-aware** — checkpoint mỗi 10 iterations, force finish khi hết budget
-- **Deep analysis** — network → source maps → minified JS fallback → narrow down
-- **THINK OUT LOUD** — agent viết reasoning trước mỗi tool call, user thấy real-time
+- **Budget-aware** — continuous `[Context: X/Y tokens (Z%)]` on every LLM call, force finish as safety net
+- **Evidence-driven** — agent chooses investigation strategy based on observed evidence, not fixed steps
+- **OBSERVE → PLAN** — agent synthesizes last result + updates hypothesis before planning next tool call
 
 ### 1.3 Investigation Modes
 
@@ -38,13 +38,9 @@ ai-debug-agent/
 │   ├── browser.ts       # CapturedLog, CapturedRequest, CorrelatedEvidence
 │   ├── schemas.ts       # Zod: InvestigationRequestSchema (input validation)
 │   └── types.ts         # Barrel re-export
-├── mcp-server/          # MCP Server: source map tools, investigate_bug tool
-│   ├── tools/           # Tool implementations (7 tools)
-│   ├── sourcemap/       # Source map consumer, fetcher, resolver, tracer
-│   ├── constants/       # Tool definitions, browser settings, guardrails
-│   └── types/           # Actions, browser, DOM, network types
-├── mcp-client/          # Core: agent loop, LLM, Playwright bridge
+├── engine/              # Core: agent loop, LLM, Playwright bridge, source maps
 │   ├── agent/           # Loop, helpers, tools, prompts, bridges, config
+│   ├── sourcemap/       # Source map consumer, fetcher, resolver, tracer
 │   ├── observability/   # EventBus, InvestigationLogger, StepAggregator
 │   ├── reporter/        # Markdown report generator
 │   └── service/         # InvestigationService (pipeline orchestrator)
@@ -64,8 +60,7 @@ ai-debug-agent/
 **Dependencies:**
 
 ```
-shared ← mcp-client ← mcp-server
-                     ← api
+shared ← engine ← api
          web (standalone, mirrors shared types via api/types.ts)
 ```
 
@@ -74,41 +69,39 @@ shared ← mcp-client ← mcp-server
 ## 3. System Diagram
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                        Consumers                           │
-│  MCP Host (Claude/Cursor)  │  Web Dashboard  │  REST API   │
-└──────────┬─────────────────┼────────────────┼─────────────┘
-           │                 │                │
-     ┌─────▼──────┐   ┌─────▼──────┐  ┌─────▼──────┐
-     │ mcp-server │   │    web/    │  │    api/    │
-     │  (stdio)   │   │  (Vite)   │  │  (Hono)   │
-     └─────┬──────┘   └───────────┘  └─────┬──────┘
-           │                                │
-           └──────────┬─────────────────────┘
-                      │
-           ┌──────────▼────────────────────────────────┐
-           │              mcp-client/                   │
-           │                                            │
-           │  ┌──────────────────────────────────────┐  │
-           │  │          Agent Loop (single)          │  │
-           │  │                                      │  │
-           │  │  LLM ──► Tool Call ──► Execute ──┐   │  │
-           │  │   ▲                              │   │  │
-           │  │   └── Tool Result ◄──────────────┘   │  │
-           │  │                                      │  │
-           │  │  Checkpoints every 10 iterations     │  │
-           │  │  Force finish at iteration 50        │  │
-           │  └──┬───────────────┬───────────────┬──┘  │
-           │     │               │               │      │
-           │  Playwright     Source Map     fetch_js     │
-           │  MCP Tools      Tools         _snippet     │
-           └─────┼───────────────┼───────────────┼──────┘
-                 │               │               │
-           ┌─────▼──────┐  ┌────▼─────┐   ┌─────▼─────┐
-           │ @playwright │  │mcp-server│   │ HTTP fetch│
-           │    /mcp     │  │sourcemap │   │ (JS file) │
-           │ (Chromium)  │  │ resolver │   └───────────┘
-           └─────────────┘  └──────────┘
+┌─────────────────────────────────────────────────┐
+│                    Consumers                     │
+│    Web Dashboard    │       REST API             │
+└─────────┬───────────┼──────────────┬─────────────┘
+          │           │              │
+    ┌─────▼──────┐    │       ┌──────▼──────┐
+    │    web/    │    │       │    api/     │
+    │  (Vite)   │    │       │  (Hono)    │
+    └───────────┘    │       └──────┬──────┘
+                     │              │
+           ┌─────────▼──────────────▼──────────────┐
+           │              engine/                   │
+           │                                        │
+           │  ┌──────────────────────────────────┐  │
+           │  │        Agent Loop (single)        │  │
+           │  │                                  │  │
+           │  │  LLM ──► Tool Call ──► Execute ─┐│  │
+           │  │   ▲                             ││  │
+           │  │   └── Tool Result ◄─────────────┘│  │
+           │  │                                  │  │
+           │  │  Token-based budget awareness    │  │
+           │  │  Force finish at last iteration   │  │
+           │  └──┬──────────────┬──────────────┬─┘  │
+           │     │              │              │     │
+           │  Playwright    Source Map    fetch_js   │
+           │  MCP Tools    (direct)     _snippet    │
+           └─────┼──────────────┼──────────────┼────┘
+                 │              │              │
+           ┌─────▼──────┐ ┌────▼─────┐  ┌─────▼─────┐
+           │ @playwright │ │ engine/  │  │ HTTP fetch│
+           │    /mcp     │ │sourcemap │  │ (JS file) │
+           │ (Chromium)  │ │(direct)  │  └───────────┘
+           └─────────────┘ └──────────┘
 ```
 
 ---
@@ -128,13 +121,14 @@ INPUT: URL + hint
   │        MAIN LOOP (max 50)        │
   │                                  │
   │  1. Call LLM (parallel tool calls) │
-  │  2. Emit reasoning (content)     │
-  │  3. Execute tool call            │
-  │  4. If finish_investigation →    │
-  │     return FinishResult          │
-  │  5. Reflection checkpoint / 10 iter │
-  │  6. Trim old tool results        │
-  │  7. Repeat                       │
+  │  2. OBSERVE → PLAN reasoning      │
+  │  3. Execute tool calls            │
+  │  4. If finish_investigation →     │
+  │     return FinishResult           │
+  │  5. Token-based budget awareness  │
+  │  6. Proactive context compression │
+  │  7. Stall detection               │
+  │  8. Repeat                        │
   └──────────────────────────────────┘
          │
          ▼
@@ -143,43 +137,58 @@ INPUT: URL + hint
 
 ### 4.2 Key Files
 
-| File                      | Role                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------- |
-| `agent-loop.ts`           | Main loop: LLM call → parallel tool dispatch → checkpoints → episodic memory  |
-| `agent-loop.helpers.ts`   | LLM retry (HTTP + timeout/network), result parsing, smart context compression |
-| `agent-loop.tools.ts`     | Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET   |
-| `agent-loop.types.ts`     | FinishResult, AgentLoopDeps types                                             |
-| `agent-loop.normalize.ts` | Parse LLM args → FinishResult                                                 |
-| `prompts.ts`              | System prompt: THINK OUT LOUD, WORKFLOW, DEEP ANALYSIS                        |
-| `llm-client.ts`           | OpenAI SDK wrapper                                                            |
-| `config-loader.ts`        | 3-layer config: file → env → request → defaults                               |
-| `bridge-factory.ts`       | Centralized MCP bridge creation (subprocess + in-process modes)               |
-| `playwright-bridge.ts`    | Playwright MCP client connection                                              |
-| `mcp-bridge.ts`           | MCP Server bridge for source map tools                                        |
-| `message-queue.ts`        | User message queue for interactive mode                                       |
-| `snapshot-summarizer.ts`  | Compress large snapshots for context window                                   |
+| File                      | Role                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `agent-loop.ts`           | Main loop: LLM call → parallel tool dispatch → budget awareness → episodic memory |
+| `agent-loop.helpers.ts`   | LLM retry (HTTP + timeout/network), result parsing, smart context compression     |
+| `agent-loop.tools.ts`     | Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET       |
+| `agent-loop.types.ts`     | FinishResult, AgentLoopDeps types                                                 |
+| `agent-loop.normalize.ts` | Parse LLM args → FinishResult                                                     |
+| `prompts.ts`              | System prompt: OBSERVE→PLAN, INVESTIGATION STRATEGIES, BUDGET AWARENESS           |
+| `llm-client.ts`           | OpenAI SDK wrapper                                                                |
+| `config-loader.ts`        | 3-layer config: file → env → request → defaults                                   |
+| `bridge-factory.ts`       | Centralized MCP bridge creation (subprocess + in-process modes)                   |
+| `playwright-bridge.ts`    | Playwright MCP client connection                                                  |
+| `mcp-bridge.ts`           | MCP Server bridge for source map tools                                            |
+| `message-queue.ts`        | User message queue for interactive mode                                           |
+| `snapshot-summarizer.ts`  | Compress large snapshots for context window                                       |
 
-### 4.3 Budget-Aware Reflection Checkpoints
+### 4.3 Continuous Budget Awareness
+
+Instead of periodic checkpoint injection, the agent receives **token-based** budget context on **every** LLM call:
 
 ```
-Iteration 10  → "⚠️ REFLECTION CHECKPOINT: REFLECT → EVALUATE → DECIDE + failed action history"
-Iteration 20  → "⚠️ REFLECTION CHECKPOINT: ...updated history..."
-Iteration 30  → "⚠️ REFLECTION CHECKPOINT: ..." + ⚠️ WARNING: budget > 60%, wrap up
-Iteration 40  → "⚠️ REFLECTION CHECKPOINT: ..." + 🚨 CRITICAL: must finish next turn
-Iteration 49  → FORCE_FINISH_MESSAGE (mandatory finish)
+[Context: 0/128,000 tokens (0%)]
+[Context: 45,200/128,000 tokens (35%)] [Failed: resolve_error_location({...})]
+[Context: 112,000/128,000 tokens (88%)] [Failed: ...]
 ```
+
+The system prompt teaches the agent to self-regulate:
+
+- `> 60%` → wrap up, confirm strongest hypothesis
+- `> 85%` → call `finish_investigation` with whatever evidence available
+- Last iteration → FORCE_FINISH_MESSAGE (safety net)
+
+Token-based is more accurate than iteration-based: one iteration with 5 parallel tools consumes ~5x more context than one iteration with 1 tool.
 
 ### 4.4 Agent Resilience Features
 
-| Feature                       | Implementation                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------ |
-| **Parallel tool execution**   | `Promise.allSettled` — executes multiple tool calls from a single LLM response |
-| **Episodic memory**           | `triedActions[]` tracks tool+args+success per iteration, prevents loops        |
-| **LLM retry**                 | Retries on HTTP 429/500-504 AND timeout/network errors (max 2 retries)         |
-| **Playwright error recovery** | `RECOVERABLE_PATTERNS` match timeout/navigation/page crash → auto-retry        |
-| **Smart context compression** | Type-aware: network→keep status+URLs, errors→first 5 lines, code→6 lines       |
-| **Escalating urgency**        | Iter 30: ⚠️ WARNING wrap up · Iter 40: 🚨 CRITICAL must finish next turn       |
-| **Force finish**              | Iter 49: mandatory `finish_investigation` with whatever evidence is available  |
+| Feature                       | Implementation                                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Parallel tool execution**   | `Promise.allSettled` — executes multiple tool calls from a single LLM response                                                                          |
+| **Episodic memory**           | `triedActions[]` tracks tool+args+success per iteration, prevents loops                                                                                 |
+| **Duplicate detection**       | Skip re-execution of tool+args that already failed, inject guidance message                                                                             |
+| **LLM retry**                 | Retries on HTTP 429/500-504 AND timeout/network errors (max 2 retries)                                                                                  |
+| **Playwright error recovery** | `RECOVERABLE_PATTERNS` match timeout/navigation/page crash → auto-retry                                                                                 |
+| **Proactive context mgmt**    | Dynamic sliding window: 5→3→1 based on token usage %, type-aware compression                                                                            |
+| **Token-based budget**        | `[Context: X/Y tokens (Z%)]` on every call — agent self-regulates                                                                                       |
+| **Stall detection**           | 3+ consecutive failed iterations → warning; 5+ → force finish                                                                                           |
+| **Self-assessment**           | Agent checks "any untried strategy left?" after each OBSERVE → finishes if exhausted                                                                    |
+| **Force finish**              | Last iteration: mandatory `finish_investigation` with whatever evidence                                                                                 |
+| **Emergency finish**          | If agent exhausts budget without `finish_investigation` → `buildEmergencyResult` synthesizes partial report from collected evidence. Never returns null |
+| **Crash state detection**     | Empty page snapshot → inject guidance: "finish with evidence you have, do not re-navigate"                                                              |
+| **Circular nav detection**    | Last 8 actions uniqueRatio < 0.5 → inject warning: "repeating same sequence, finish now"                                                                |
+| **Purposeful exploration**    | Prompt teaches: continue only if unanswered question + budget < 60% + different action                                                                  |
 
 ### 4.5 Tool Categories
 
@@ -198,43 +207,35 @@ Iteration 49  → FORCE_FINISH_MESSAGE (mandatory finish)
 **State inspection (via `browser_evaluate`):**
 Framework detection (React/Vue/Redux) → read-only state extraction. Guardrails: no mutations, no side effects.
 
-### 4.6 Deep Analysis Workflow
+### 4.6 Evidence-Driven Investigation
+
+Agent chooses strategy based on observed evidence, not a hardcoded sequence:
 
 ```
-Error found in console
-      │
-      ▼
-1. Reconstruct EVENT TIMELINE: actions → network → console
-      │
-      ▼
-2. browser_network_requests → check failed API calls
-      │
-      ▼
-3. Source Maps (preferred):
-   fetch_source_map → resolve_error_location → read_source_file
-      │
-      ▼ (if source maps fail)
-4. fetch_js_snippet → read minified code around error line
-      │
-      ▼
-5. Hypothesize & Test:
-   - Form H1/H2/H3 from evidence
-   - Test most promising hypothesis first
-   - Trace backwards: error → value → source → API
-      │
-      ▼
-6. State Inspection (if null/undefined suspected):
-   - browser_evaluate → detect framework → read state
-      │
-      ▼
-finish_investigation (with timeline + findings)
+FIRST STEP: navigate → snapshot → reproduce hint
+       │
+       ▼ (what do you see?)
+       ┌───────────────────────────────────────────┐
+       │  Console errors? → source maps → root cause │
+       │  UI wrong?       → snapshot + state inspect  │
+       │  Network issue?  → check responses/payloads  │
+       │  Interaction bug? → reproduce + observe       │
+       └───────────────────────────────────────────┘
+       │
+       ▼ (no progress after 2 attempts?)
+       STRATEGY SWITCHING → try different approach
+       │
+       ▼
+       finish_investigation
 ```
+
+Key difference from fixed workflows: agent adapts to the bug type instead of following prescribed steps.
 
 ---
 
 ## 5. Observability & Reporting
 
-`mcp-client/src/observability/` + `mcp-client/src/reporter/`
+`engine/src/observability/` + `engine/src/reporter/`
 
 | File                      | Role                                                                    |
 | ------------------------- | ----------------------------------------------------------------------- |
@@ -270,7 +271,7 @@ agentLoop returns FinishResult
 
 ### 5.1 InvestigationService (Pipeline Orchestrator)
 
-`mcp-client/src/service/investigation-service.ts`
+`engine/src/service/investigation-service.ts`
 
 Orchestrates the full pipeline:
 
@@ -281,19 +282,12 @@ runInvestigationPipeline(request, deps)
   → createInvestigationLogger(eventBus, url, hint)
   → createPlaywrightBridge(headless)
   → createLLMClient(config)
-  → runAgentLoop(url, hint, deps)
+  → runAgentLoop(url, hint, deps)     // returns FinishResult (never null — emergency finish as safety net)
   → buildReport(result, url, startTime)
   → logger.writeFooter() (token + cost summary)
 ```
 
-### 5.2 Bridge Factory
-
-`mcp-client/src/agent/bridge-factory.ts`
-
-| Function                | Use Case                                             |
-| ----------------------- | ---------------------------------------------------- |
-| `createDefaultBridge`   | Subprocess: spawns mcp-server via stdio (production) |
-| `createBridgeForServer` | In-process: direct server ref (testing)              |
+Source map tools (`fetch_source_map`, `resolve_error_location`, `read_source_file`) are called directly via `sourceMapCall()` — no subprocess or MCP protocol overhead.
 
 ---
 
@@ -301,19 +295,28 @@ runInvestigationPipeline(request, deps)
 
 Hono server on `:3100`.
 
-| Method | Path                       | Description                          |
-| ------ | -------------------------- | ------------------------------------ |
-| `GET`  | `/`                        | Service info                         |
-| `GET`  | `/health`                  | Health check                         |
-| `GET`  | `/investigate`             | List all threads                     |
-| `POST` | `/investigate`             | Start investigation → `{ threadId }` |
-| `GET`  | `/investigate/:id`         | Get thread + report                  |
-| `GET`  | `/investigate/:id/events`  | Get all events                       |
-| `GET`  | `/investigate/:id/stream`  | SSE event stream                     |
-| `POST` | `/investigate/:id/message` | Send user message (interactive)      |
-| `GET`  | `/reports`                 | List completed reports               |
+| Method | Path                       | Description                                         |
+| ------ | -------------------------- | --------------------------------------------------- |
+| `GET`  | `/`                        | Service info                                        |
+| `GET`  | `/health`                  | Health check                                        |
+| `GET`  | `/investigate`             | List all threads                                    |
+| `POST` | `/investigate`             | Start investigation → `{ threadId, queuePosition }` |
+| `GET`  | `/investigate/:id`         | Get thread + report                                 |
+| `GET`  | `/investigate/:id/events`  | Get all events                                      |
+| `GET`  | `/investigate/:id/stream`  | SSE event stream                                    |
+| `POST` | `/investigate/:id/message` | Send user message (interactive)                     |
+| `GET`  | `/reports`                 | List completed reports                              |
 
 **Architecture:** Routes → ThreadService (business logic) → ThreadRepository (Drizzle ORM) → SQLite
+
+### 6.1 Investigation Queue
+
+ThreadService uses a **promise-chain mutex** to serialize investigations (single browser instance):
+
+- POST `/investigate` returns `queuePosition` (0 = running immediately)
+- If `queuePosition > 0`, thread status is `queued` and SSE emits `investigation_queued` event
+- FE shows running/queued status banners, disables input form during active investigations
+- Thread statuses: `running` → `done` | `error` | `queued` → `running` → `done` | `error`
 
 **Middleware stack:** `requestLogger` → `apiKeyAuth` → `errorHandler`
 
@@ -483,23 +486,21 @@ Vite + React SPA on `:5173`. 34 source files.
 ## 11. Data Flow
 
 ```
-User (Web/MCP) → API/MCP Server
+User (Web) → API
   → ThreadService.createThread() → SQLite insert
   → ThreadService.startPipeline()
-    → createDefaultBridge() → spawn mcp-server subprocess
     → runInvestigationPipeline()
       → loadConfig(overrides)
       → createEventBus() + createInvestigationLogger()
       → createPlaywrightBridge(headless) → Chromium
       → createLLMClient(config)
       → runAgentLoop(url, hint, deps)
-        → [LLM call → parallel tool dispatch → reflection checkpoints]
+        → [LLM call → parallel tool dispatch → token-based budget awareness]
         → triedActions[] tracks episodic memory
         → RECOVERABLE_PATTERNS retry Playwright errors
         → FinishResult
       → buildReport(result, url, startTime)
       → logger.writeFooter() (token/cost summary)
-    → bridge.close()
   → ThreadService.completeThread() → SQLite update
   → SSE stream / API response
 ```

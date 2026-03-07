@@ -43,3 +43,7 @@ export const InvestigationRequestSchema = z.object({
 });
 
 export type InvestigationRequest = z.infer<typeof InvestigationRequestSchema>;
+
+export const UserMessageSchema = z.object({
+  message: z.string().min(1),
+});

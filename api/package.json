@@ -18,7 +18,7 @@
         "dev": "node --watch dist/server.js"
     },
     "dependencies": {
-        "@ai-debug/mcp-client": "workspace:*",
+        "@ai-debug/engine": "workspace:*",
         "@ai-debug/shared": "workspace:*",
         "@hono/node-server": "^1.13.0",
         "better-sqlite3": "^11.0.0",

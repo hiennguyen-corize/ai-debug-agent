@@ -2,16 +2,16 @@
  * ThreadRepository — data access layer using Drizzle ORM.
  */
 
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, isNotNull } from 'drizzle-orm';
 import { threads, events } from '#db/schema.js';
 import type { AppDatabase } from '#db/client.js';
-import type { InvestigationReport, InvestigationMode, AgentEvent } from '@ai-debug/shared';
+import type { InvestigationReport, InvestigationMode, AgentEvent, ThreadStatus } from '@ai-debug/shared';
 
 const THREAD_LIST_LIMIT = 50;
 
 export type ThreadRecord = {
   id: string;
-  status: 'running' | 'done' | 'error';
+  status: ThreadStatus;
   url: string;
   hint: string;
   mode: InvestigationMode;
@@ -45,6 +45,7 @@ export const createThreadRepository = (db: AppDatabase): {
   create(input: CreateThreadInput): ThreadRecord;
   findById(threadId: string): ThreadRecord | undefined;
   findAll(): ThreadRecord[];
+  findWithReports(): ThreadRecord[];
   updateStatus(threadId: string, status: ThreadRecord['status']): void;
   updateReport(threadId: string, report: InvestigationReport): void;
   updateError(threadId: string, error: string): void;
@@ -71,6 +72,11 @@ export const createThreadRepository = (db: AppDatabase): {
 
   findAll(): ThreadRecord[] {
     const rows = db.select().from(threads).orderBy(desc(threads.createdAt)).limit(THREAD_LIST_LIMIT).all();
+    return rows.map(toRecord);
+  },
+
+  findWithReports(): ThreadRecord[] {
+    const rows = db.select().from(threads).where(isNotNull(threads.report)).orderBy(desc(threads.createdAt)).all();
     return rows.map(toRecord);
   },
 

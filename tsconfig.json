@@ -2,8 +2,7 @@
   "files": [],
   "references": [
     { "path": "shared" },
-    { "path": "mcp-client" },
-    { "path": "mcp-server" },
+    { "path": "engine" },
     { "path": "api" },
     { "path": "tsconfig.test.json" }
   ]

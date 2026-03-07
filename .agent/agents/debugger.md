@@ -25,7 +25,7 @@ skills: clean-code, systematic-debugging, typescript-expert
 This is the **AI Debug Agent** — an automated web app debugging service using:
 
 - **Single Agent Loop**: One LLM, one browser, one conversation — no multi-agent orchestration
-- **Budget-Aware Reflection Checkpoints**: REFLECT→EVALUATE→DECIDE every 10 iters with escalating urgency, force finish at 50
+- **Continuous Budget Awareness**: Agent sees `[Budget: X/Y remaining]` every call, self-regulates finish timing, force finish as safety net
 - **Deep Analysis**: Timeline → Hypothesize & Test → Source Maps → State Inspection → Causal Reasoning
 - **MCP Server**: Exposes `investigate_bug` tool + source map tools via stdio
 - **REST API**: Hono server with SSE streaming for remote consumers
@@ -35,10 +35,10 @@ This is the **AI Debug Agent** — an automated web app debugging service using:
 Key files to understand:
 
 - `ARCHITECTURE.md` — Architecture v7.0, single agent loop design
-- `mcp-client/src/agent/agent-loop.ts` — Main loop: LLM call → tool dispatch → checkpoints
+- `mcp-client/src/agent/agent-loop.ts` — Main loop: LLM call → tool dispatch → budget awareness → episodic memory
 - `mcp-client/src/agent/agent-loop.helpers.ts` — LLM retry (HTTP + timeout/network), result parsing, smart context compression
 - `mcp-client/src/agent/agent-loop.tools.ts` — Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET
-- `mcp-client/src/agent/prompts.ts` — System prompt: WORKFLOW, DEEP ANALYSIS, HYPOTHESIS TRACKING, EVENT TIMELINE, CAUSAL REASONING, STATE INSPECTION
+- `mcp-client/src/agent/prompts.ts` — System prompt: OBSERVE→PLAN, INVESTIGATION STRATEGIES, BUDGET AWARENESS, HYPOTHESIS TRACKING
 - `mcp-client/src/agent/config-loader.ts` — 3-layer config: file → env → request → defaults
 - `mcp-server/src/tools/` — Source map tools + investigate_bug entry point
 
@@ -77,8 +77,8 @@ PHASE 4: FIX & VERIFY
 
 | Symptom                                 | Investigation                                                        |
 | --------------------------------------- | -------------------------------------------------------------------- |
-| Agent loops forever                     | Check maxIterations, reflection checkpoints, force finish at 49      |
-| Agent doesn't call finish_investigation | Check prompts.ts workflow, reflection checkpoint injection           |
+| Agent loops forever                     | Check maxIterations, budget awareness injection, force finish at 49  |
+| Agent doesn't call finish_investigation | Check prompts.ts BUDGET AWARENESS section, system prompt rules       |
 | Tool call parsing fails                 | Check agent-loop.normalize.ts, LLM response format                   |
 | Context window exceeded                 | Check smart compression in agent-loop.helpers.ts                     |
 | Snapshot too large                      | Check snapshot-summarizer.ts compression                             |

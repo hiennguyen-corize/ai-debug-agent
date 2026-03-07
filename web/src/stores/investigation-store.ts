@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AgentEvent, InvestigationReport } from '#api/types'
+import type { AgentEvent, InvestigationReport, InvestigationMode } from '#api/types'
 import { createSSE, sendMessage as apiSendMessage, getThread } from '#api/investigate'
 
 export type ChatMessage = {
@@ -16,8 +16,8 @@ export type Investigation = {
   threadId: string | null
   url: string
   hint: string
-  mode: 'interactive' | 'autonomous'
-  status: 'pending' | 'running' | 'done' | 'error'
+  mode: InvestigationMode
+  status: 'pending' | 'queued' | 'running' | 'done' | 'error'
   messages: ChatMessage[]
   report: InvestigationReport | null
   error: string | null
@@ -175,7 +175,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
           threadId: t.threadId,
           url: t.request.url,
           hint: t.request.hint ?? '',
-          mode: (t.request.mode as 'interactive' | 'autonomous') ?? 'interactive',
+          mode: (t.request.mode as InvestigationMode) ?? 'interactive',
           status: t.status as Investigation['status'],
           messages,
           report: t.report,
@@ -189,7 +189,7 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
 
       // Auto-reconnect SSE for running investigations
       for (const inv of investigations) {
-        if (inv.status === 'running' && inv.threadId) {
+        if ((inv.status === 'running' || inv.status === 'queued') && inv.threadId) {
           get().connectSSE(inv.id, inv.threadId)
         }
       }

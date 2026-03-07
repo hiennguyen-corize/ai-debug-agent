@@ -7,23 +7,17 @@ AI-powered web application debugger. Give it a URL and a bug description → it 
 ## Architecture
 
 ```
-Developer → POST /investigate (REST) or investigate_bug (MCP)
+Developer → POST /investigate (REST)
                     │
                     ▼
             ┌──────────────┐
-            │  mcp-client   │  LangGraph Investigation Graph
+            │    engine      │  Single Agent Loop
             │               │
-            │  Preflight → Scout → Orchestrator ↔ Worker
-            │                        │
-            │               Source Map → Synthesis → Report
-            └──────┬───────┘
-                   │
-            ┌──────▼───────┐
-            │  mcp-server   │  20 MCP Tools (Playwright + Source Map)
+            │  Agent Loop → Playwright + Source Map → Report
             └──────────────┘
 ```
 
-**Dual interface:** MCP Server (tool calls) + REST API (HTTP/SSE).
+**Interface:** REST API (HTTP/SSE) via `api/` package.
 
 ---
 
@@ -153,28 +147,10 @@ AI_DEBUG_API_KEY="your-secret" pnpm run dev:api
 
 Server starts at `http://localhost:3100`.
 
-### Option B: MCP Server
+### Option B: CLI (Direct)
 
-Add to your MCP client config (Antigravity, Cursor, Claude Desktop):
-
-```json
-{
-  "mcpServers": {
-    "ai-debug-agent": {
-      "command": "node",
-      "args": ["./mcp-server/dist/index.js"],
-      "env": {
-        "OPENAI_API_KEY": "sk-..."
-      }
-    }
-  }
-}
-```
-
-Then invoke via MCP:
-
-```
-investigate_bug({ url: "https://example.com", hint: "cart crash" })
+```bash
+pnpm run debug -- --url https://example.com --hint "cart crash"
 ```
 
 ---
@@ -332,23 +308,13 @@ ai-debug-agent/
 │   ├── skill-types.ts    Skill system types
 │   ├── bug-patterns.ts   10 bug patterns catalogue (fallback)
 │   └── types.ts          Barrel re-export
-├── mcp-server/       MCP server + 20 tools
-│   ├── browser/          Playwright wrappers (actions, dom, collector)
+├── engine/           Core engine: agent loop, source maps, services
+│   ├── agent/            Loop, LLM client, config, skill-loader
 │   ├── sourcemap/        Source map parser (consumer, resolver)
-│   └── tools/            Tool handlers (navigate, click, fill, ...)
-├── mcp-client/       LangGraph graph + services
-│   ├── graph/            Investigation graph (nodes, routing, state)
-│   ├── agent/            LLM client, config, skill-loader, skill-registry
 │   ├── service/          InvestigationService facade
 │   ├── reporter/         Report generator + registry
 │   ├── observability/    EventBus, logger, investigation-logger
 │   └── skills/           21 skill files (.skill.md)
-│       ├── frameworks/     react, nextjs, vue
-│       ├── bug-patterns/   api-error, js-exception, ...
-│       ├── auth/           cookie-session, oauth
-│       ├── source-map/     webpack, vite
-│       ├── browser/        spa-navigation, shadow-dom
-│       └── report/         dev-report, github-issue
 ├── api/              Hono REST API
 │   ├── routes/           /investigate, /reports
 │   ├── middleware/       API key auth
@@ -410,7 +376,7 @@ Page loaded → Scout detects React + API errors
 | **Browser**      | `spa-navigation`, `shadow-dom`                                                                                                                                    |
 | **Report**       | `dev-report`, `github-issue`                                                                                                                                      |
 
-Skill files: `mcp-client/skills/**/*.skill.md`
+Skill files: `engine/skills/**/*.skill.md`
 
 ---
 

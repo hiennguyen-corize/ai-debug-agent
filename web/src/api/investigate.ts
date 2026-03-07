@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { ThreadResponse } from './types'
+import type { ThreadResponse, InvestigationMode } from './types'
 
 type StartResult = { threadId: string; status: string }
 type ApiEnvelope<T> = { data: T }
@@ -7,7 +7,7 @@ type ApiEnvelope<T> = { data: T }
 export const startInvestigation = async (
   url: string,
   hint: string,
-  mode: 'interactive' | 'autonomous',
+  mode: InvestigationMode,
 ): Promise<StartResult> => {
   const res = await api.post('investigate', { json: { url, hint, mode } }).json<ApiEnvelope<StartResult>>()
   return res.data

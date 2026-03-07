@@ -11,6 +11,7 @@ import { SourceMapResolvedEvent, SourceMapFailedEvent } from './events/SourceMap
 import { ScreenshotEvent } from './events/ScreenshotEvent'
 import { LlmUsageEvent } from './events/LlmUsageEvent'
 import { WaitingForInputEvent } from './events/WaitingForInputEvent'
+import { QueuedEvent } from './events/QueuedEvent'
 
 function EventRouter({ event }: { event: AgentEvent }) {
   switch (event.type) {
@@ -24,6 +25,7 @@ function EventRouter({ event }: { event: AgentEvent }) {
     case 'screenshot_captured': return <ScreenshotEvent event={event} />
     case 'llm_usage': return <LlmUsageEvent event={event} />
     case 'waiting_for_input': return <WaitingForInputEvent event={event} />
+    case 'investigation_queued': return <QueuedEvent event={event} />
     default: return null
   }
 }

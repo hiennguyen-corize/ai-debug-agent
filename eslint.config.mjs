@@ -16,6 +16,7 @@ export default tseslint.config(
             'tests/unit/*.ts',
             'tests/mocks/*.ts',
             'tests/integration/*.test.ts',
+            'tests/engine/*.test.ts',
           ],
         },
         tsconfigRootDir: import.meta.dirname,

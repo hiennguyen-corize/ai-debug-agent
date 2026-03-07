@@ -4,10 +4,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '#agent': resolve(__dirname, 'mcp-client/src/agent'),
-      '#observability': resolve(__dirname, 'mcp-client/src/observability'),
-      '#reporter': resolve(__dirname, 'mcp-client/src/reporter'),
-      '#service': resolve(__dirname, 'mcp-client/src/service'),
+      '#agent': resolve(__dirname, 'engine/src/agent'),
+      '#observability': resolve(__dirname, 'engine/src/observability'),
+      '#reporter': resolve(__dirname, 'engine/src/reporter'),
+      '#service': resolve(__dirname, 'engine/src/service'),
+      '#sourcemap': resolve(__dirname, 'engine/src/sourcemap'),
     },
   },
   test: {
@@ -16,7 +17,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['mcp-server/src/**', 'mcp-client/src/**', 'shared/**', 'api/**'],
+      include: ['engine/src/**', 'shared/**', 'api/**'],
     },
   },
 });

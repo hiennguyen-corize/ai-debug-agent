@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useInvestigationStore } from '#stores/investigation-store'
 import { useSettingsStore } from '#stores/settings-store'
-import { Button, StatusDot } from '#components/primitives'
-import { cn } from '#lib/utils'
-import { Plus } from 'lucide-react'
+import { StatusDot } from '#components/primitives'
+import { cn, relativeTime } from '#lib/utils'
 
 export function Sidebar() {
-  const { investigations, activeId, setActive, removeInvestigation } = useInvestigationStore()
+  const { investigations, activeId, setActive } = useInvestigationStore()
   const [collapsed, setCollapsed] = useState(false)
   const { mode } = useSettingsStore()
 
@@ -53,8 +52,11 @@ export function Sidebar() {
                     : 'text-text-secondary hover:bg-bg-tertiary border-l-2 border-transparent',
                 )}
               >
-                <StatusDot status={inv.status === 'running' ? 'running' : inv.status === 'done' ? 'done' : inv.status === 'error' ? 'error' : 'pending'} />
-                <span className="truncate font-mono text-xs">{label}</span>
+                <StatusDot status={inv.status} />
+                <div className="truncate">
+                  <span className="font-mono text-xs block">{label}</span>
+                  <span className="text-[10px] text-text-muted">{relativeTime(inv.createdAt)}</span>
+                </div>
               </button>
             )
           })}

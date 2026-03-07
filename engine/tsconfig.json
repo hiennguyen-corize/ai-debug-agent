@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "paths": {
+      "#agent/*.js": ["./src/agent/*.ts"],
+      "#observability/*.js": ["./src/observability/*.ts"],
+      "#reporter/*.js": ["./src/reporter/*.ts"],
+      "#service/*.js": ["./src/service/*.ts"],
+      "#sourcemap/*.js": ["./src/sourcemap/*.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../shared" }]
+}

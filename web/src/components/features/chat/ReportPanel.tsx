@@ -1,4 +1,5 @@
 import type { InvestigationReport } from '#api/types'
+import { formatDuration } from '#lib/utils'
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'text-error',
@@ -26,7 +27,7 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
     : report.suggestedFix?.explanation ?? null
 
   return (
-    <div className="border border-report/30 rounded-lg bg-bg-secondary p-4 space-y-4">
+    <div id="report" className="border border-report/30 border-l-4 border-l-report rounded-lg bg-bg-secondary p-4 space-y-4 shadow-[0_0_12px_rgba(139,92,246,0.08)]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-report font-mono flex items-center gap-2">
@@ -116,7 +117,7 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
       {/* Duration */}
       {report.durationMs !== undefined && report.durationMs > 0 && (
         <div className="text-xs text-text-muted font-mono text-right">
-          Completed in {Math.round(report.durationMs / 1000)}s
+          Completed in {formatDuration(report.durationMs)}
         </div>
       )}
     </div>

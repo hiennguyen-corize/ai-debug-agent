@@ -44,6 +44,15 @@ export const REPORT_SEVERITY = {
 
 export type ReportSeverity = (typeof REPORT_SEVERITY)[keyof typeof REPORT_SEVERITY];
 
+export const THREAD_STATUS = {
+  QUEUED: 'queued',
+  RUNNING: 'running',
+  DONE: 'done',
+  ERROR: 'error',
+} as const;
+
+export type ThreadStatus = (typeof THREAD_STATUS)[keyof typeof THREAD_STATUS];
+
 export type Evidence = {
   type: string;
   description: string;

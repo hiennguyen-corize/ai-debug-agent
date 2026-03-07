@@ -12,7 +12,7 @@ import { getDb } from '#db/client.js';
 import { createThreadRepository } from '#repositories/thread-repository.js';
 import { createThreadService } from '#services/thread-service.js';
 import { createInvestigateRoute } from '#routes/investigate.js';
-import { reportsRoute } from '#routes/reports.js';
+import { createReportsRoute } from '#routes/reports.js';
 
 const db = getDb();
 const threadRepo = createThreadRepository(db);
@@ -28,7 +28,7 @@ app.get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
 
 app.use('*', apiKeyAuth);
 app.route('/investigate', createInvestigateRoute(threadService));
-app.route('/reports', reportsRoute);
+app.route('/reports', createReportsRoute(threadService));
 
 const port = Number(process.env['PORT'] ?? 3100);
 

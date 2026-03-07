@@ -2,7 +2,7 @@
     "llm": {
         "default": {
             "provider": "ollama-cloud",
-            "model": "qwen3-coder:480b",
+            "model": "deepseek-v3.1:671b-cloud",
             "baseURL": "https://ollama.com/v1",
             "apiKey": "$OLLAMA_API_KEY"
         }
@@ -10,6 +10,7 @@
     "agent": {
         "mode": "autonomous",
         "maxIterations": 50,
+        "contextWindow": 160000,
         "maxRetries": 3
     },
     "browser": {

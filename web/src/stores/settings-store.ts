@@ -1,10 +1,11 @@
 import { create } from 'zustand'
+import type { InvestigationMode } from '#api/types'
 
 type SettingsState = {
   apiKey: string
-  mode: 'interactive' | 'autonomous'
+  mode: InvestigationMode
   setApiKey: (key: string) => void
-  setMode: (mode: 'interactive' | 'autonomous') => void
+  setMode: (mode: InvestigationMode) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({

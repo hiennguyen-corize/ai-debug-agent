@@ -1,5 +1,5 @@
 /**
- * Browser-related shared types used by mcp-server.
+ * Browser-related shared types used by engine.
  */
 
 export const CONSOLE_LOG_TYPE = {

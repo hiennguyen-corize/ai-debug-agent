@@ -1,6 +1,6 @@
 /**
- * System prompt — single agent loop.
- * Simple structure, deep debugging capability.
+ * System prompt — investigation agent.
+ * Structured for deep debugging capability.
  */
 
 const LANGUAGE_RULE = `## LANGUAGE (MANDATORY)
@@ -183,9 +183,10 @@ ${CAUSAL_REASONING}
 
 ${STATE_INSPECTION}` as const;
 
-export const SYSTEM_PROMPT = BASE_PROMPT;
 
-export const buildSystemPrompt = (mode: string): string =>
-  mode === 'interactive'
+import { INVESTIGATION_MODE, type InvestigationMode } from '@ai-debug/shared';
+
+export const buildSystemPrompt = (mode: InvestigationMode): string =>
+  mode === INVESTIGATION_MODE.INTERACTIVE
     ? `${BASE_PROMPT}\n\n${INTERACTIVE_MODE_SECTION}`
     : BASE_PROMPT;

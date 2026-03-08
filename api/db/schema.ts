@@ -7,7 +7,7 @@ import type { ThreadStatus, InvestigationMode } from '@ai-debug/shared';
 
 export const threads = sqliteTable('threads', {
   id: text('id').primaryKey(),
-  status: text('status').$type<ThreadStatus>().notNull().default('running'),
+  status: text('status').$type<ThreadStatus>().notNull().default('queued'),
   url: text('url').notNull(),
   hint: text('hint').default(''),
   mode: text('mode').$type<InvestigationMode>().notNull().default('interactive'),
@@ -23,7 +23,19 @@ export const events = sqliteTable('events', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
 
+export const artifacts = sqliteTable('artifacts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  threadId: text('thread_id').notNull().references(() => threads.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  name: text('name').notNull(),
+  content: text('content').notNull(),
+  toolCallId: text('tool_call_id'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
 export type Thread = typeof threads.$inferSelect;
 export type NewThread = typeof threads.$inferInsert;
 export type ThreadEvent = typeof events.$inferSelect;
 export type NewThreadEvent = typeof events.$inferInsert;
+export type Artifact = typeof artifacts.$inferSelect;
+export type NewArtifact = typeof artifacts.$inferInsert;

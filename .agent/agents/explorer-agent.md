@@ -15,26 +15,24 @@ This is a **monorepo Investigation Service** with the following packages:
 ```
 ai-debug-agent/
 ├── shared/          # Types, schemas, constants — zero runtime deps
-├── mcp-server/      # MCP Server: source map tools, investigate_bug tool
-├── mcp-client/      # Core: single agent loop, LLM client, Playwright bridge
-├── api/             # Hono REST API + SQLite + SSE streaming
+├── engine/          # Core: LangGraph agent loop, LLM client, Playwright bridge
+├── api/             # Hono REST API + SQLite (Drizzle) + SSE streaming
 └── web/             # Vite + React dashboard
 ```
 
 **Dependencies:**
 
 ```
-shared ← mcp-client ← mcp-server
-                     ← api
+shared ← engine ← api
          web (standalone, shared API types)
 ```
 
 **Key architectural boundaries:**
 
-- **Single agent loop** — one LLM, one browser, one conversation (no multi-agent orchestration)
-- `mcp-server` ↔ `mcp-client` communicate via **MCP stdio transport**
+- **Single agent loop** — one LLM, one browser, one conversation (LangGraph orchestration)
+- Playwright MCP for browser automation (stdio transport)
 - `api/` wraps the agent loop as REST endpoints with SSE streaming
-- EventBus → SSE consumers
+- EventBus → SSE consumers → SQLite (events + artifacts)
 
 ## Your Expertise
 
@@ -45,12 +43,12 @@ shared ← mcp-client ← mcp-server
 
 ## Discovery Flow
 
-1. **Entry Points**: `api/` server, `mcp-server/src/index.ts`, `mcp-client/src/index.ts`
-2. **Agent Loop**: `agent/agent-loop.ts` → `agent-loop.helpers.ts` → `agent-loop.tools.ts` → `agent-loop.normalize.ts`
-3. **Prompt & Config**: `agent/prompts.ts` → `agent/config-loader.ts`
-4. **Tool Flow**: `agent-loop.tools.ts` → Playwright MCP tools + source map tools + custom tools
-5. **Bridge Flow**: `agent/playwright-bridge.ts` → `@playwright/mcp` | `agent/mcp-bridge.ts` → source map server
-6. **Observability Flow**: EventBus → SSE stream / API response
+1. **Entry Points**: `api/` server, `engine/src/service/investigation-service.ts`
+2. **Agent Graph**: `engine/src/agent/graph/investigation-graph.ts` → `nodes.ts` → `tool-dispatch.ts` → `helpers.ts`
+3. **Prompt & Config**: `engine/src/agent/loop/prompts.ts` → `engine/src/agent/config-loader.ts`
+4. **Tool Flow**: `engine/src/agent/loop/tools.ts` → Playwright MCP tools + source map tools + custom tools
+5. **Bridge Flow**: `engine/src/agent/playwright-bridge.ts` → `@playwright/mcp`
+6. **Observability Flow**: EventBus → SSE stream + SQLite (events/artifacts tables)
 
 ## When You Should Be Used
 

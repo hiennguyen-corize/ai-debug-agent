@@ -20,9 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check-all": "pnpm typecheck && pnpm lint && pnpm test",
-    "dev:api": "npm run dev -w api",
-    "dev": "tsc --build && node api/dist/server.js",
-    "start": "node api/dist/server.js",
+    "dev:api": "pnpm --filter @ai-debug/api run dev",
+    "dev": "tsc --build && pnpm --filter @ai-debug/api run dev",
+    "start": "pnpm --filter @ai-debug/api run dev",
     "build": "tsc --build"
   },
   "devDependencies": {
@@ -33,7 +33,6 @@
     "eslint-config-prettier": "^10.0.0",
     "prettier": "^3.4.0",
     "vitest": "^3.0.0",
-    "@types/node": "^22.0.0",
-    "@types/better-sqlite3": "^7.6.0"
+    "@types/node": "^22.0.0"
   }
 }

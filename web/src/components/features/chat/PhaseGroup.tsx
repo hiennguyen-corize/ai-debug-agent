@@ -31,8 +31,8 @@ export function PhaseGroup({ group, isExpanded, isActive, onToggle, startTime }:
   if (!cfg) {
     return (
       <div className="space-y-0.5 py-1">
-        {group.messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} hideAgent startTime={startTime} />
+        {group.messages.map((msg, i) => (
+          <ChatMessage key={msg.id} message={msg} hideAgent startTime={startTime} isLast={i === group.messages.length - 1} isLive={isActive} />
         ))}
       </div>
     )
@@ -67,8 +67,8 @@ export function PhaseGroup({ group, isExpanded, isActive, onToggle, startTime }:
       borderColor={cfg.color}
     >
       <div className="pl-4 border-l border-border-subtle ml-[1px]">
-        {group.messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} hideAgent compact startTime={startTime} />
+        {group.messages.map((msg, i) => (
+          <ChatMessage key={msg.id} message={msg} hideAgent compact startTime={startTime} isLast={i === group.messages.length - 1} isLive={isActive} />
         ))}
       </div>
     </CollapsibleSection>

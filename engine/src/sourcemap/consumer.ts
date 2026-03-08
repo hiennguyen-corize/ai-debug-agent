@@ -6,8 +6,12 @@ import { SourceMapConsumer, type BasicSourceMapConsumer, type IndexedSourceMapCo
 
 type ConcreteConsumer = BasicSourceMapConsumer | IndexedSourceMapConsumer;
 
-export const createConsumer = async (rawMap: unknown): Promise<ConcreteConsumer> =>
-  new SourceMapConsumer(rawMap as RawSourceMap);
+const isSourceMapLike = (v: unknown): v is RawSourceMap =>
+  typeof v === 'object' && v !== null && 'version' in v && 'mappings' in v;
 
-export const getConsumerSources = (consumer: ConcreteConsumer): string[] =>
-  consumer.sources;
+export const createConsumer = async (rawMap: unknown): Promise<ConcreteConsumer> => {
+  if (!isSourceMapLike(rawMap)) {
+    throw new Error('Invalid source map: missing required "version" or "mappings" fields');
+  }
+  return new SourceMapConsumer(rawMap);
+};

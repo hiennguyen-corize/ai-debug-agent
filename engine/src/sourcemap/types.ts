@@ -33,12 +33,7 @@ export type ParsedErrorLocation = {
   column: number;
 };
 
-export type ImportChainLink = {
-  file: string;
-  callerLine: number;
-  callerCode: string;
-  role: string;
-};
+
 
 export type SourceMapConfig = {
   localPath?: string;

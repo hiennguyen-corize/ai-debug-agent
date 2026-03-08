@@ -1,5 +1,5 @@
 /**
- * Tool definitions for the agent loop.
+ * Tool definitions for the investigation agent.
  */
 
 import type OpenAI from 'openai';

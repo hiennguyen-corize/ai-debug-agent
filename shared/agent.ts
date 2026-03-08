@@ -25,6 +25,15 @@ export const INVESTIGATION_PHASE = {
 
 export type InvestigationPhase = (typeof INVESTIGATION_PHASE)[keyof typeof INVESTIGATION_PHASE];
 
+export const ARTIFACT_TYPE = {
+  SNAPSHOT: 'snapshot',
+  CONSOLE: 'console',
+  NETWORK: 'network',
+  SCREENSHOT: 'screenshot',
+} as const;
+
+export type ArtifactType = (typeof ARTIFACT_TYPE)[keyof typeof ARTIFACT_TYPE];
+
 export type AgentEvent =
   | { type: 'reasoning'; agent: AgentName; text: string }
   | { type: 'tool_call'; agent: AgentName; tool: string; args: unknown }
@@ -43,7 +52,8 @@ export type AgentEvent =
   | { type: 'investigation_phase'; phase: InvestigationPhase }
   | { type: 'investigation_queued'; position: number; message: string }
   | { type: 'screenshot_captured'; agent: AgentName; data: string }
-  | { type: 'waiting_for_input'; agent: AgentName; prompt: string };
+  | { type: 'waiting_for_input'; agent: AgentName; prompt: string }
+  | { type: 'artifact_captured'; artifactType: ArtifactType; name: string; content: string; toolCallId?: string };
 
 export const STEP_TYPE = {
   THINKING: 'thinking',

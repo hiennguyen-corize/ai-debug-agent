@@ -89,6 +89,7 @@ export const aggregateEvent = (event: AgentEvent): InvestigationStep => {
     case 'screenshot_captured':
     case 'waiting_for_input':
     case 'investigation_queued':
+    case 'artifact_captured':
       return aggregateFallback(event);
   }
 };

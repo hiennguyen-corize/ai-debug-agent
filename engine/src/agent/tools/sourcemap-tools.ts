@@ -25,6 +25,13 @@ const handleResolveErrorLocation = async (args: Record<string, unknown>): Promis
   const resolved = await resolveLocation(mapResult.rawMap, line, column);
   if (resolved === null) throw new Error(`Could not resolve ${line.toString()}:${column.toString()}`);
 
+  if (typeof resolved.originalFile === 'string' && resolved.originalFile.includes('node_modules')) {
+    return {
+      ...resolved,
+      _frameworkHint: `⚠ This resolved to framework/library code (${resolved.originalFile}), NOT application code. Look at the stack trace for the NEXT frame that points to application source (src/, pages/, components/, app/). Call resolve_error_location again with that frame's line:column.`,
+    };
+  }
+
   return resolved;
 };
 

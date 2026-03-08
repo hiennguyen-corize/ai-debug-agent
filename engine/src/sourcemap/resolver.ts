@@ -15,40 +15,40 @@ const MAX_FUNCTION_LINES = 50;
  * Extract the enclosing function body around targetLine using brace matching.
  * Falls back to ±SURROUNDING_LINES if function is too large or detection fails.
  */
-const extractFunctionBody = (content: string, targetLine: number): string => {
-  const lines = content.split('\n');
-  const idx = targetLine - 1; // 0-indexed
-  if (idx < 0 || idx >= lines.length) return '';
+const FUNCTION_START_PATTERN = /^\s*(export\s+)?(async\s+)?(function\b|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=|\w+\s*\()/;
 
-  // Walk backward to find function start
-  let start = idx;
+const findFunctionStart = (lines: string[], fromIdx: number): number => {
   let braceDepth = 0;
-  for (let i = idx; i >= 0; i--) {
+  for (let i = fromIdx; i >= 0; i--) {
     const line = lines[i] ?? '';
     braceDepth += (line.match(/\}/g) ?? []).length;
     braceDepth -= (line.match(/\{/g) ?? []).length;
-    if (braceDepth <= 0 && /^\s*(export\s+)?(async\s+)?(function\b|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=|\w+\s*\()/.test(line)) {
-      start = i;
-      break;
-    }
-    if (i === 0) start = 0;
+    if (braceDepth <= 0 && FUNCTION_START_PATTERN.test(line)) return i;
+    if (i === 0) return 0;
   }
+  return 0;
+};
 
-  // Walk forward from start to find closing brace
-  braceDepth = 0;
-  let end = idx;
-  for (let i = start; i < lines.length; i++) {
+const findFunctionEnd = (lines: string[], fromIdx: number): number => {
+  let braceDepth = 0;
+  for (let i = fromIdx; i < lines.length; i++) {
     const line = lines[i] ?? '';
     braceDepth += (line.match(/\{/g) ?? []).length;
     braceDepth -= (line.match(/\}/g) ?? []).length;
-    if (braceDepth <= 0 && i > start) {
-      end = i;
-      break;
-    }
-    if (i === lines.length - 1) end = i;
+    if (braceDepth <= 0 && i > fromIdx) return i;
+    if (i === lines.length - 1) return i;
   }
+  return fromIdx;
+};
 
-  // Cap at MAX_FUNCTION_LINES to save tokens
+const extractFunctionBody = (content: string, targetLine: number): string => {
+  const lines = content.split('\n');
+  const idx = targetLine - 1;
+  if (idx < 0 || idx >= lines.length) return '';
+
+  let start = findFunctionStart(lines, idx);
+  let end = findFunctionEnd(lines, start);
+
   if (end - start + 1 > MAX_FUNCTION_LINES) {
     start = Math.max(0, idx - SURROUNDING_LINES);
     end = Math.min(lines.length - 1, idx + SURROUNDING_LINES);

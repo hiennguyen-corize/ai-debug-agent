@@ -31,25 +31,20 @@ Expert in testing the AI Debug Agent service — from unit tests to full pipelin
 
 ### Test Targets by Module
 
-| Module                                       | Test Type   | Key Tests                                                                                                 |
-| -------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
-| `mcp-client/agent/agent-loop.ts`             | Integration | Loop runs, parallel tool dispatch, budget awareness, duplicate detection, episodic memory, error recovery |
-| `mcp-client/agent/agent-loop.helpers.ts`     | Unit        | LLM retry logic (HTTP + timeout), smart context compression, result parsing                               |
-| `mcp-client/agent/agent-loop.tools.ts`       | Unit        | Tool definitions correct, schema validation                                                               |
-| `mcp-client/agent/agent-loop.normalize.ts`   | Unit        | FinishResult parsing from various LLM response formats                                                    |
-| `mcp-client/agent/config-loader.ts`          | Unit        | Env var resolution `$VAR`, config precedence (request > env > file > defaults)                            |
-| `mcp-client/agent/prompts.ts`                | Unit        | System prompt generation, mode-specific sections                                                          |
-| `mcp-client/agent/snapshot-summarizer.ts`    | Unit        | Large snapshot compression, error clustering, signature extraction                                        |
-| `mcp-client/agent/message-queue.ts`          | Unit        | Queue push/pop, async waiting                                                                             |
-| `mcp-client/agent/llm-client.ts`             | Unit        | OpenAI SDK wrapper, API key resolution                                                                    |
-| `mcp-client/agent/playwright-bridge.ts`      | Integration | Playwright MCP connection, tool listing                                                                   |
-| `mcp-client/agent/mcp-bridge.ts`             | Integration | Source map server connection                                                                              |
-| `mcp-server/tools/fetch-source-map.ts`       | Unit        | Source map download, parsing                                                                              |
-| `mcp-server/tools/resolve-error-location.ts` | Unit        | Minified line:col → original file:line mapping                                                            |
-| `mcp-server/tools/read-source-file.ts`       | Unit        | Read original source code around error                                                                    |
-| `mcp-server/tools/investigate-bug.ts`        | Integration | Full investigate_bug tool entry point                                                                     |
-| `shared/`                                    | Unit        | Zod schema validation (types, domain)                                                                     |
-| `api/`                                       | Integration | REST endpoints, SSE streaming, request validation                                                         |
+| Module                                     | Test Type   | Key Tests                                                                      |
+| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------ |
+| `engine/agent/graph/nodes.ts`              | Integration | LangGraph nodes: agent, tools, after_tools, emergency, force_finish            |
+| `engine/agent/graph/helpers.ts`            | Unit        | Context compression, budget injection, circular detection                      |
+| `engine/agent/graph/tool-dispatch.ts`      | Unit        | Parallel tool execution, artifact capture, result truncation                   |
+| `engine/agent/loop/normalize.ts`           | Unit        | FinishResult parsing from various LLM response formats                         |
+| `engine/agent/config-loader.ts`            | Unit        | Env var resolution `$VAR`, config precedence (request > env > file > defaults) |
+| `engine/agent/loop/prompts.ts`             | Unit        | System prompt generation, mode-specific sections                               |
+| `engine/agent/loop/snapshot-summarizer.ts` | Unit        | Large snapshot compression, error clustering, signature extraction             |
+| `engine/agent/llm-client.ts`               | Unit        | LangChain ChatOpenAI wrapper, API key resolution                               |
+| `engine/agent/playwright-bridge.ts`        | Integration | Playwright MCP connection, tool listing                                        |
+| `engine/sourcemap/resolver.ts`             | Unit        | Source map resolution, minified → original mapping                             |
+| `shared/`                                  | Unit        | Zod schema validation (types, domain)                                          |
+| `api/`                                     | Integration | REST endpoints, SSE streaming, request validation, SQLite persistence          |
 
 ---
 

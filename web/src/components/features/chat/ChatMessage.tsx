@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { AgentEvent } from '#api/types'
 import type { ChatMessage as ChatMessageType } from '#stores/investigation-store'
 import { cn, formatElapsed } from '#lib/utils'
@@ -12,6 +13,7 @@ import { ScreenshotEvent } from './events/ScreenshotEvent'
 import { LlmUsageEvent } from './events/LlmUsageEvent'
 import { WaitingForInputEvent } from './events/WaitingForInputEvent'
 import { QueuedEvent } from './events/QueuedEvent'
+import { ArtifactEvent } from './events/ArtifactEvent'
 
 function EventRouter({ event }: { event: AgentEvent }) {
   switch (event.type) {
@@ -26,32 +28,51 @@ function EventRouter({ event }: { event: AgentEvent }) {
     case 'llm_usage': return <LlmUsageEvent event={event} />
     case 'waiting_for_input': return <WaitingForInputEvent event={event} />
     case 'investigation_queued': return <QueuedEvent event={event} />
+    case 'artifact_captured': return <ArtifactEvent event={event} />
     default: return null
   }
 }
 
-function ElapsedBadge({ timestamp, startTime }: { timestamp: number; startTime: number }) {
+function ElapsedBadge({ startTime, timestamp, live }: { startTime: number; timestamp: number; live?: boolean }) {
+  const [now, setNow] = useState(Date.now)
+
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => { setNow(Date.now()) }, 1000)
+    return () => clearInterval(id)
+  }, [live])
+
+  const display = live
+    ? formatElapsed(now, startTime)
+    : formatElapsed(timestamp, startTime)
+
   return (
-    <span className="text-[10px] font-mono text-text-muted tabular-nums opacity-60 select-none shrink-0">
-      {formatElapsed(timestamp, startTime)}
+    <span className={cn(
+      'text-[10px] font-mono tabular-nums select-none shrink-0',
+      live ? 'text-accent animate-pulse' : 'text-text-muted opacity-60',
+    )}>
+      {display}
     </span>
   )
 }
 
 type ChatMessageProps = {
   message: ChatMessageType
-  hideAgent?: boolean
-  compact?: boolean
-  startTime?: number
+  hideAgent?: boolean | undefined
+  compact?: boolean | undefined
+  startTime?: number | undefined
+  isLast?: boolean | undefined
+  isLive?: boolean | undefined
 }
 
-export function ChatMessage({ message, hideAgent, compact, startTime }: ChatMessageProps) {
+export function ChatMessage({ message, hideAgent, compact, startTime, isLast, isLive }: ChatMessageProps) {
   const showElapsed = startTime != null && message.timestamp > 0
+  const live = isLast === true && isLive === true
 
   if (message.event) {
     return (
       <div className={cn('flex items-start gap-2', 'py-1', compact ? 'px-2' : 'px-3')}>
-        {showElapsed && <ElapsedBadge timestamp={message.timestamp} startTime={startTime} />}
+        {showElapsed && <ElapsedBadge timestamp={message.timestamp} startTime={startTime} live={live} />}
         <div className="flex-1 min-w-0">
           <EventRouter event={message.event as AgentEvent} />
         </div>
@@ -67,7 +88,7 @@ export function ChatMessage({ message, hideAgent, compact, startTime }: ChatMess
       message.role === 'user' && 'bg-bg-secondary border-b border-border-subtle',
     )}>
       <div className="flex items-center gap-2">
-        {showElapsed && <ElapsedBadge timestamp={message.timestamp} startTime={startTime} />}
+        {showElapsed && <ElapsedBadge timestamp={message.timestamp} startTime={startTime} live={live} />}
         {!hideAgent && (
           <span className="text-[10px] uppercase tracking-widest font-mono text-text-muted">
             {message.role}
@@ -80,3 +101,4 @@ export function ChatMessage({ message, hideAgent, compact, startTime }: ChatMess
     </div>
   )
 }
+

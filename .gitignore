@@ -2,8 +2,18 @@ node_modules/
 dist/
 *.tsbuildinfo
 *.db
-debug-reports/report-registry.json
+*.db-shm
+*.db-wal
+debug-reports/
 .env
 *.log
 .DS_Store
-__pycache__/*ai-agent-v2/
+__pycache__/
+ai-agent-v2/
+ai-debug.config.json
+data/
+
+# Playwright MCP temp output files
+*_snapshot*.txt
+console*.txt
+network*.txt

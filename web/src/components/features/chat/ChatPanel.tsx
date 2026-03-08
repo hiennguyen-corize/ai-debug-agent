@@ -117,7 +117,7 @@ export function ChatPanel() {
 
   const groups = useMemo(
     () => (active ? groupByPhase(active.messages) : []),
-    [active?.messages.length],
+    [active?.messages],
   )
 
   const [manualExpanded, setManualExpanded] = useState<Set<number>>(new Set())
@@ -167,8 +167,8 @@ export function ChatPanel() {
             />
           ) : (
             <div key={gi}>
-              {group.messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} hideAgent startTime={active.createdAt} />
+              {group.messages.map((msg, mi) => (
+                <ChatMessage key={msg.id} message={msg} hideAgent startTime={active.createdAt} isLast={gi === lastGroupIndex && mi === group.messages.length - 1} isLive={active.status === 'running'} />
               ))}
             </div>
           )

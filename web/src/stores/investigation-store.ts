@@ -1,14 +1,14 @@
 import { create } from 'zustand'
 import type { AgentEvent, InvestigationReport, InvestigationMode } from '#api/types'
-import { createSSE, sendMessage as apiSendMessage, getThread } from '#api/investigate'
+import { createSSE, sendMessage as apiSendMessage, getThread, listThreads, getThreadEvents } from '#api/investigate'
 
 export type ChatMessage = {
   id: string
   role: 'user' | 'system' | 'agent'
   content: string
   timestamp: number
-  agent?: string
-  event?: AgentEvent
+  agent?: string | undefined
+  event?: AgentEvent | undefined
 }
 
 export type Investigation = {
@@ -42,7 +42,6 @@ type InvestigationState = {
 let counter = 0
 export const createMessageId = (): string => `msg-${Date.now()}-${++counter}`
 
-const API_BASE = '/api'
 
 const eventToMessage = (event: AgentEvent, index: number): ChatMessage => ({
   id: `hydrated-${index}`,
@@ -53,14 +52,7 @@ const eventToMessage = (event: AgentEvent, index: number): ChatMessage => ({
   event,
 })
 
-type ThreadListItem = {
-  threadId: string
-  status: string
-  request: { url: string; hint?: string; mode: string }
-  report: InvestigationReport | null
-  error: string | null
-  createdAt?: number
-}
+
 
 export const useInvestigationStore = create<InvestigationState>((set, get) => ({
   investigations: [],
@@ -122,13 +114,13 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
       getThread(threadId)
         .then((t) => {
           get().updateInvestigation(investigationId, {
-            status: (t.status === 'running' ? 'done' : t.status) as Investigation['status'],
+            status: t.status as Investigation['status'],
             report: t.report,
             error: t.error,
           })
         })
         .catch(() => {
-          get().updateInvestigation(investigationId, { status: 'done' })
+          get().updateInvestigation(investigationId, { status: 'error', error: 'SSE connection lost' })
         })
     }
   },
@@ -149,16 +141,12 @@ export const useInvestigationStore = create<InvestigationState>((set, get) => ({
   hydrate: async () => {
     if (get().hydrated) return
     try {
-      const res = await fetch(`${API_BASE}/investigate`)
-      if (!res.ok) return
-      const json = (await res.json()) as { data: ThreadListItem[] }
-      const threads = json.data
+      const threads = await listThreads()
 
       const investigations: Investigation[] = []
       for (const t of threads) {
-        const eventsRes = await fetch(`${API_BASE}/investigate/${t.threadId}/events`)
-        const eventsJson = eventsRes.ok ? ((await eventsRes.json()) as { data: AgentEvent[] }) : null
-        const events = eventsJson?.data ?? []
+        let events: AgentEvent[] = []
+        try { events = await getThreadEvents(t.threadId) } catch { /* skip */ }
 
         const messages: ChatMessage[] = [
           {

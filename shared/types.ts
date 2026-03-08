@@ -16,6 +16,7 @@ export {
   STREAM_LEVEL,
   INVESTIGATION_PHASE,
   STEP_TYPE,
+  ARTIFACT_TYPE,
 } from './agent.js';
 
 export type {
@@ -25,6 +26,7 @@ export type {
   StepType,
   AgentEvent,
   InvestigationStep,
+  ArtifactType,
 } from './agent.js';
 
 export {

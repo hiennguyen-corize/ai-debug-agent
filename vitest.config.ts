@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '#agent': resolve(__dirname, 'engine/src/agent'),
+      '#graph': resolve(__dirname, 'engine/src/agent/graph'),
       '#observability': resolve(__dirname, 'engine/src/observability'),
       '#reporter': resolve(__dirname, 'engine/src/reporter'),
       '#service': resolve(__dirname, 'engine/src/service'),

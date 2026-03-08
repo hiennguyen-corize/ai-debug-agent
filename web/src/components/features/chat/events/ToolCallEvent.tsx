@@ -11,89 +11,14 @@ export function ToolCallEvent({ event }: { event: Extract<AgentEvent, { type: 't
   )
 }
 
-// --- Result parsing ---
+import { extractTextContent, parseSections } from './result-parser'
 
-type ParsedSection = {
-  type: 'header' | 'code' | 'text' | 'snapshot'
-  title?: string
-  language?: string
-  content: string
-}
-
-const extractTextContent = (raw: string): string => {
-  // Playwright MCP returns [{"type":"text","text":"..."}]
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is { type: string; text: string } =>
-          typeof item === 'object' && item !== null && 'text' in item)
-        .map((item) => item.text)
-        .join('\n')
-    }
-  } catch {
-    // not JSON, use as-is
-  }
-  return raw
-}
-
-const parseSections = (text: string): ParsedSection[] => {
-  const sections: ParsedSection[] = []
-  const lines = text.split('\n')
-  let i = 0
-
-  while (i < lines.length) {
-    const line = lines[i]!
-
-    // ### Header
-    if (line.startsWith('### ')) {
-      sections.push({ type: 'header', content: line.slice(4) })
-      i++
-      continue
-    }
-
-    // ```code block```
-    if (line.startsWith('```')) {
-      const lang = line.slice(3).trim()
-      const isSnapshot = lang === 'yaml' || lang === 'accessibilitytree'
-      const codeLines: string[] = []
-      i++
-      while (i < lines.length && !lines[i]!.startsWith('```')) {
-        codeLines.push(lines[i]!)
-        i++
-      }
-      i++ // skip closing ```
-      sections.push({
-        type: isSnapshot ? 'snapshot' : 'code',
-        language: lang || undefined,
-        title: isSnapshot ? 'Page Snapshot' : undefined,
-        content: codeLines.join('\n'),
-      })
-      continue
-    }
-
-    // Regular text line (skip empty)
-    if (line.trim().length > 0) {
-      // Collect consecutive text lines
-      const textLines: string[] = [line]
-      i++
-      while (i < lines.length && !lines[i]!.startsWith('###') && !lines[i]!.startsWith('```') && lines[i]!.trim().length > 0) {
-        textLines.push(lines[i]!)
-        i++
-      }
-      sections.push({ type: 'text', content: textLines.join('\n') })
-      continue
-    }
-
-    i++
-  }
-
-  return sections
-}
+const SHORT_CONTENT_THRESHOLD = 120
+const RESULT_PREVIEW_LEN = 500
 
 // --- Components ---
 
-function CodeBlock({ language, content }: { language?: string; content: string }) {
+function CodeBlock({ content }: { content: string }) {
   return (
     <pre className="text-[11px] font-mono bg-bg-tertiary rounded px-2 py-1.5 my-1 overflow-x-auto whitespace-pre-wrap break-all text-text-secondary leading-relaxed">
       {content}
@@ -152,15 +77,16 @@ function StructuredResult({ text }: { text: string }) {
   return (
     <div className="pl-4 mt-1 space-y-0.5">
       {sections.map((section, i) => {
+        const key = `${section.type}-${i.toString()}`
         switch (section.type) {
           case 'header':
-            return <SectionHeader key={i} content={section.content} />
+            return <SectionHeader key={key} content={section.content} />
           case 'code':
-            return <CodeBlock key={i} language={section.language} content={section.content} />
+            return <CodeBlock key={key} content={section.content} />
           case 'snapshot':
-            return <CollapsibleSnapshot key={i} content={section.content} />
+            return <CollapsibleSnapshot key={key} content={section.content} />
           case 'text':
-            return <TextLine key={i} content={section.content} />
+            return <TextLine key={key} content={section.content} />
         }
       })}
     </div>
@@ -175,7 +101,7 @@ export function ToolResultEvent({ event }: { event: Extract<AgentEvent, { type: 
   const hasContent = rawText.length > 0
   const textContent = useMemo(() => hasContent ? extractTextContent(rawText) : '', [rawText, hasContent])
   const isStructured = textContent.includes('###') || textContent.includes('```')
-  const isLong = textContent.length > 120
+  const isLong = textContent.length > SHORT_CONTENT_THRESHOLD
 
   return (
     <div className="py-0.5">
@@ -204,7 +130,7 @@ export function ToolResultEvent({ event }: { event: Extract<AgentEvent, { type: 
               'text-[11px] text-text-muted font-mono mt-1 pl-4 whitespace-pre-wrap break-all leading-relaxed',
               'max-h-48 overflow-y-auto',
             )}>
-              {isLong ? textContent.slice(0, 500) + '…' : textContent}
+              {isLong ? textContent.slice(0, RESULT_PREVIEW_LEN) + '…' : textContent}
             </pre>
           )}
         </div>

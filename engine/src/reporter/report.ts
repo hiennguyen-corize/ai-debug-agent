@@ -55,10 +55,12 @@ const buildReproSteps = (report: InvestigationReport): string[] => {
   ];
 };
 
+const MAX_EVIDENCE_DISPLAY = 15;
+
 const buildEvidence = (report: InvestigationReport): string[] => {
   if (report.evidence.length === 0) return [];
   return ['', '---', '', `## Evidence (${report.evidence.length.toString()} items)`, '',
-    ...report.evidence.slice(0, 15).map((ev) => `- **[${ev.type}]** ${ev.description}`),
+    ...report.evidence.slice(0, MAX_EVIDENCE_DISPLAY).map((ev) => `- **[${ev.type}]** ${ev.description}`),
   ];
 };
 

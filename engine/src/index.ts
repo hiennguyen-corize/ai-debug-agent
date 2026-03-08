@@ -10,7 +10,7 @@ import type { InvestigationRequest } from '@ai-debug/shared';
 
 export { runInvestigationPipeline } from '#service/investigation-service.js';
 export type { InvestigationDeps } from '#service/investigation-service.js';
-export type { FinishResult, AgentLoopDeps } from '#agent/loop/types.js';
+export type { FinishResult } from '#agent/loop/types.js';
 
 export const runInvestigation = async (request: InvestigationRequest): Promise<void> => {
   const eventBus = createEventBus();

@@ -2,11 +2,14 @@
  * ThreadService — business logic for investigation threads.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ThreadRepository, ThreadRecord } from '#repositories/thread-repository.js';
+import { insertArtifact } from '#repositories/artifact-repository.js';
 import type { AgentEvent, InvestigationReport, InvestigationMode, InvestigationRequest } from '@ai-debug/shared';
-import { INVESTIGATION_MODE } from '@ai-debug/shared';
+import { INVESTIGATION_MODE, AGENT_NAME } from '@ai-debug/shared';
 import { createMessageQueue, type MessageQueue } from '@ai-debug/engine/agent/message-queue';
 import type { ThreadListItem, ThreadDetail, CreateThreadResult, ReportListItem } from '#lib/dtos.js';
+import { logger } from '#lib/logger.js';
 
 type EventSubscriber = (event: AgentEvent) => void;
 
@@ -53,7 +56,7 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
   let pipelineChain: Promise<void> = Promise.resolve();
   let runningCount = 0;
 
-  const generateId = (): string => `debug-${Date.now().toString()}`;
+  const generateId = (): string => `debug-${randomUUID()}`;
 
   const subscribe = (threadId: string, subscriber: EventSubscriber): void => {
     const subs = liveSubscribers.get(threadId);
@@ -68,10 +71,35 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
   };
 
   const handleEvent = (threadId: string, event: AgentEvent): void => {
-    repo.insertEvent(threadId, event);
+    try {
+      repo.insertEvent(threadId, event);
+    } catch (err) {
+      logger.error({ threadId, err }, '[ThreadService] Failed to persist event');
+    }
+
+    // Persist artifact to DB
+    if (event.type === 'artifact_captured') {
+      try {
+        insertArtifact({
+          threadId,
+          type: event.artifactType,
+          name: event.name,
+          content: event.content,
+          toolCallId: event.toolCallId,
+        });
+      } catch (err) {
+        logger.error({ threadId, err }, '[ThreadService] Failed to persist artifact');
+      }
+    }
     const subs = liveSubscribers.get(threadId);
     if (subs !== undefined) {
-      for (const sub of subs) sub(event);
+      for (const sub of subs) {
+        try {
+          sub(event);
+        } catch (err) {
+          logger.error({ threadId, err }, '[ThreadService] Subscriber error');
+        }
+      }
     }
   };
 
@@ -82,10 +110,14 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
       repo.updateStatus(threadId, 'done');
     }
     liveSubscribers.delete(threadId);
+    const queue = messageQueues.get(threadId);
+    if (queue !== undefined) queue.cancel();
     messageQueues.delete(threadId);
   };
 
   const failThread = (threadId: string, error: string): void => {
+    logger.error({ threadId, error }, '[ThreadService] Investigation failed');
+    handleEvent(threadId, { type: 'error', agent: AGENT_NAME.AGENT, message: error });
     repo.updateError(threadId, error);
     liveSubscribers.delete(threadId);
     messageQueues.delete(threadId);
@@ -126,6 +158,7 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
             onEvent: (event: AgentEvent) => { handleEvent(thread.id, event); },
             configOverrides: input.config,
             messageQueue: messageQueues.get(thread.id),
+            threadId: thread.id,
           },
         );
         completeThread(thread.id, report);
@@ -200,7 +233,7 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
 
     isRunning(threadId: string): boolean {
       const thread = repo.findById(threadId);
-      return thread?.status === 'running';
+      return thread?.status === 'running' || thread?.status === 'queued';
     },
 
     sendMessage(threadId: string, message: string): boolean {

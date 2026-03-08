@@ -2,7 +2,7 @@
  * ThreadRepository — data access layer using Drizzle ORM.
  */
 
-import { eq, desc, isNotNull } from 'drizzle-orm';
+import { eq, desc, isNotNull, inArray } from 'drizzle-orm';
 import { threads, events } from '#db/schema.js';
 import type { AppDatabase } from '#db/client.js';
 import type { InvestigationReport, InvestigationMode, AgentEvent, ThreadStatus } from '@ai-debug/shared';
@@ -27,8 +27,14 @@ type CreateThreadInput = {
   mode: InvestigationMode;
 };
 
-const parseReport = (raw: string | null): InvestigationReport | null =>
-  raw !== null ? (JSON.parse(raw) as InvestigationReport) : null;
+const parseReport = (raw: string | null): InvestigationReport | null => {
+  if (raw === null) return null;
+  try {
+    return JSON.parse(raw) as InvestigationReport;
+  } catch {
+    return null;
+  }
+};
 
 const toRecord = (row: typeof threads.$inferSelect): ThreadRecord => ({
   id: row.id,
@@ -51,6 +57,7 @@ export const createThreadRepository = (db: AppDatabase): {
   updateError(threadId: string, error: string): void;
   insertEvent(threadId: string, event: AgentEvent): void;
   findEventsByThreadId(threadId: string): AgentEvent[];
+  cleanupOrphaned(): number;
 } => ({
   create(input: CreateThreadInput): ThreadRecord {
     db.insert(threads).values({
@@ -99,6 +106,15 @@ export const createThreadRepository = (db: AppDatabase): {
   findEventsByThreadId(threadId: string): AgentEvent[] {
     const rows = db.select({ data: events.data }).from(events).where(eq(events.threadId, threadId)).all();
     return rows.map((r) => JSON.parse(r.data) as AgentEvent);
+  },
+
+  /** Mark orphaned running/queued threads as error on startup. */
+  cleanupOrphaned(): number {
+    const result = db.update(threads)
+      .set({ status: 'error', error: 'Server restarted while investigation was in progress' })
+      .where(inArray(threads.status, ['running', 'queued']))
+      .run();
+    return result.changes;
   },
 });
 

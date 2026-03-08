@@ -2,12 +2,33 @@
  * Config loader — 3-layer: file → env → request override → defaults.
  */
 
-import 'dotenv/config';
-import { readFile } from 'node:fs/promises';
+import dotenv from 'dotenv';
+import { readFile, access } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { InvestigationRequest } from '@ai-debug/shared';
 
 const CONFIG_FILE_NAME = 'ai-debug.config.json';
+
+/** Walk up from CWD to find the config file (handles monorepo sub-packages). */
+const findConfigFile = async (): Promise<string> => {
+  const startDir = process.cwd();
+  for (let dir = startDir; ; dir = dirname(dir)) {
+    const candidate = join(dir, CONFIG_FILE_NAME);
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // not found here, go up
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+  }
+  throw new Error(
+    `${CONFIG_FILE_NAME} not found. Searched from ${startDir} upward. ` +
+    'Create the config file with at least llm.default (provider, baseURL, model, apiKey).',
+  );
+};
 
 const LLMConfigSchema = z.object({
   provider: z.string(),
@@ -22,11 +43,8 @@ export type LLMRoleConfig = z.infer<typeof LLMConfigSchema>;
 const AppConfigSchema = z.object({
   baseUrl: z.string().default('http://localhost:3000'),
   llm: z.object({
-    default: LLMConfigSchema.default({
-      provider: 'ollama', baseURL: 'http://localhost:11434/v1',
-      model: 'qwen2.5:7b', apiKey: '',
-    }),
-  }).default({}),
+    default: LLMConfigSchema,
+  }),
   agent: z.object({
     maxIterations: z.number().default(50),
     contextWindow: z.number().default(128_000),
@@ -53,8 +71,18 @@ const AppConfigSchema = z.object({
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
-const resolveEnvVars = (value: string): string =>
-  value.startsWith('$') ? (process.env[value.slice(1)] ?? '') : value;
+const resolveEnvVars = (value: string): string => {
+  if (!value.startsWith('$')) return value;
+  const envName = value.slice(1);
+  const resolved = process.env[envName];
+  if (resolved === undefined || resolved === '') {
+    throw new Error(
+      `Environment variable ${envName} is not set. ` +
+      'Set it in your shell or create a .env file in the project root.',
+    );
+  }
+  return resolved;
+};
 
 const resolveConfigApiKeys = (obj: Record<string, unknown>): void => {
   for (const [key, value] of Object.entries(obj)) {
@@ -67,12 +95,11 @@ const resolveConfigApiKeys = (obj: Record<string, unknown>): void => {
 };
 
 const loadFromFile = async (): Promise<unknown> => {
-  try {
-    const raw = await readFile(CONFIG_FILE_NAME, 'utf-8');
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return {};
-  }
+  const configPath = await findConfigFile();
+  // Load .env from the same directory as the config file
+  dotenv.config({ path: join(dirname(configPath), '.env') });
+  const raw = await readFile(configPath, 'utf-8');
+  return JSON.parse(raw) as unknown;
 };
 
 const deepMerge = (base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> => {
@@ -94,7 +121,7 @@ export const loadConfig = async (requestOverrides?: InvestigationRequest['config
   const merged = typeof fileConfig === 'object' && fileConfig !== null
     ? deepMerge(fileConfig as Record<string, unknown>, (requestOverrides ?? {}) as Record<string, unknown>)
     : (requestOverrides ?? {});
+  resolveConfigApiKeys(merged as Record<string, unknown>);
   const config = AppConfigSchema.parse(merged);
-  resolveConfigApiKeys(config as unknown as Record<string, unknown>);
   return config;
 };

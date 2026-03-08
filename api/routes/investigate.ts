@@ -7,6 +7,7 @@ import { streamSSE } from 'hono/streaming';
 import { InvestigationRequestSchema, UserMessageSchema, type AgentEvent } from '@ai-debug/shared';
 import type { ThreadService } from '#services/thread-service.js';
 import { ok, created, notFound, badRequest } from '#lib/response.js';
+import { getArtifactsByThread } from '#repositories/artifact-repository.js';
 
 export const createInvestigateRoute = (service: ThreadService): Hono => {
   const route = new Hono();
@@ -29,14 +30,24 @@ export const createInvestigateRoute = (service: ThreadService): Hono => {
     ok(c, service.getThreadEvents(c.req.param('threadId'))),
   );
 
+  route.get('/:threadId/artifacts', (c) =>
+    ok(c, getArtifactsByThread(c.req.param('threadId'))),
+  );
+
   route.get('/:threadId/stream', (c) => {
     const threadId = c.req.param('threadId');
     if (service.getThread(threadId) === undefined) {
       return notFound(c, 'Thread not found');
     }
     return streamSSE(c, async (stream) => {
+      let aborted = false;
+      stream.onAbort(() => { aborted = true; });
+
       const onEvent = (event: AgentEvent): void => {
-        void stream.writeSSE({ data: JSON.stringify(event) });
+        if (aborted) return;
+        stream.writeSSE({ data: JSON.stringify(event) }).catch(() => {
+          aborted = true; // Client disconnected — stop writing
+        });
       };
       await service.streamEvents(threadId, onEvent);
     });

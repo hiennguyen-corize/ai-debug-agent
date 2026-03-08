@@ -10,16 +10,21 @@ export function Sidebar() {
   const { mode } = useSettingsStore()
 
   return (
-    <aside className={cn(
+    <aside
+      aria-label="Investigation sidebar"
+      className={cn(
       'h-full border-r border-border bg-bg-secondary flex flex-col transition-[width] duration-200',
       collapsed ? 'w-12' : 'w-64',
     )}>
       {/* Header */}
       <div className="h-12 flex items-center px-3 border-b border-border">
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
           className="text-text-muted hover:text-text-primary transition-colors cursor-pointer"
           title={collapsed ? 'Expand' : 'Collapse'}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? '▸' : '◂'}
         </button>

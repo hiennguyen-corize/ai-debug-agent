@@ -56,7 +56,12 @@ const fetchFromBuildDir = async (
   bundleUrl: string,
   buildDirs: string[],
 ): Promise<SourceMapResult | null> => {
-  const mapFileName = `${basename(new URL(bundleUrl).pathname)}.map`;
+  let mapFileName: string;
+  try {
+    mapFileName = `${basename(new URL(bundleUrl).pathname)}.map`;
+  } catch {
+    return null; // Invalid URL — cannot extract filename
+  }
   for (const dir of buildDirs) {
     const candidate = join(dir, mapFileName);
     try {

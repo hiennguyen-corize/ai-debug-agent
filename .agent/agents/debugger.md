@@ -34,13 +34,14 @@ This is the **AI Debug Agent** — an automated web app debugging service using:
 
 Key files to understand:
 
-- `ARCHITECTURE.md` — Architecture v7.0, single agent loop design
-- `mcp-client/src/agent/agent-loop.ts` — Main loop: LLM call → tool dispatch → budget awareness → episodic memory
-- `mcp-client/src/agent/agent-loop.helpers.ts` — LLM retry (HTTP + timeout/network), result parsing, smart context compression
-- `mcp-client/src/agent/agent-loop.tools.ts` — Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET
-- `mcp-client/src/agent/prompts.ts` — System prompt: OBSERVE→PLAN, INVESTIGATION STRATEGIES, BUDGET AWARENESS, HYPOTHESIS TRACKING
-- `mcp-client/src/agent/config-loader.ts` — 3-layer config: file → env → request → defaults
-- `mcp-server/src/tools/` — Source map tools + investigate_bug entry point
+- `ARCHITECTURE.md` — Architecture v7.2, LangGraph agent loop design
+- `engine/src/agent/graph/nodes.ts` — LangGraph nodes: agent, tools, after_tools, emergency, force_finish
+- `engine/src/agent/graph/helpers.ts` — Context compression, budget injection, circular detection
+- `engine/src/agent/graph/tool-dispatch.ts` — Tool execution, artifact capture, result truncation
+- `engine/src/agent/loop/tools.ts` — Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET
+- `engine/src/agent/loop/prompts.ts` — System prompt: OBSERVE→PLAN, INVESTIGATION STRATEGIES, BUDGET AWARENESS
+- `engine/src/agent/config-loader.ts` — 3-layer config: file → env → request → defaults
+- `engine/src/agent/graph/constants.ts` — Tuning: window sizes, stall thresholds, checkpoint intervals
 
 ---
 
@@ -75,14 +76,14 @@ PHASE 4: FIX & VERIFY
 
 ### Agent Loop Issues
 
-| Symptom                                 | Investigation                                                        |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| Agent loops forever                     | Check maxIterations, budget awareness injection, force finish at 49  |
-| Agent doesn't call finish_investigation | Check prompts.ts BUDGET AWARENESS section, system prompt rules       |
-| Tool call parsing fails                 | Check agent-loop.normalize.ts, LLM response format                   |
-| Context window exceeded                 | Check smart compression in agent-loop.helpers.ts                     |
-| Snapshot too large                      | Check snapshot-summarizer.ts compression                             |
-| LLM retries exhausted                   | Check retry logic in agent-loop.helpers.ts (retries 429/500/timeout) |
+| Symptom                                 | Investigation                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| Agent loops forever                     | Check maxIterations, budget checkpoints (CHECKPOINT_INTERVAL), force finish |
+| Agent doesn't call finish_investigation | Check prompts.ts BUDGET AWARENESS section, system prompt rules              |
+| Tool call parsing fails                 | Check normalize.ts, LLM response format                                     |
+| Context window exceeded                 | Check context compression in helpers.ts (trimOldToolResults)                |
+| Snapshot too large                      | Check snapshot-summarizer.ts compression                                    |
+| LLM retries exhausted                   | Check retry logic in llm-client.ts (maxRetries)                             |
 
 ### MCP Server Issues
 

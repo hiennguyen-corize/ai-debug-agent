@@ -4,7 +4,14 @@
  */
 
 import type { FinishResult } from '#agent/loop/types.js';
-import type { ReportSeverity } from '@ai-debug/shared';
+import { REPORT_SEVERITY, type ReportSeverity } from '@ai-debug/shared';
+
+const VALID_SEVERITIES = new Set<string>(Object.values(REPORT_SEVERITY));
+
+const asSeverity = (v: unknown): ReportSeverity =>
+  typeof v === 'string' && VALID_SEVERITIES.has(v)
+    ? v as ReportSeverity
+    : REPORT_SEVERITY.MEDIUM;
 
 const asString = (v: unknown, fallback: string): string =>
   typeof v === 'string' ? v : fallback;
@@ -60,7 +67,7 @@ const normalizeCodeLocation = (raw: unknown): FinishResult['codeLocation'] => {
 export const normalizeFinishResult = (args: Record<string, unknown>): FinishResult => ({
   summary: asString(args['summary'], 'No summary provided'),
   rootCause: asString(args['rootCause'], 'Unknown'),
-  severity: asString(args['severity'], 'medium') as ReportSeverity,
+  severity: asSeverity(args['severity']),
   stepsToReproduce: (args['stepsToReproduce'] as string[] | undefined) ?? [],
   evidence: extractEvidence(args['evidence'], args),
   suggestedFix: normalizeSuggestedFix(args['suggestedFix']),

@@ -1,4 +1,4 @@
-# AI Debug Agent — Architecture v7.0
+# AI Debug Agent — Architecture v7.2
 
 > **Single Agent Loop architecture.** One LLM agent controls a real browser via Playwright MCP, investigates bugs autonomously, and produces structured reports.
 
@@ -33,13 +33,16 @@ Developer gặp bug → mở browser → thao tác → đọc console → đọc
 ```
 ai-debug-agent/
 ├── shared/              # Types, schemas, constants — zero runtime deps
-│   ├── agent.ts         # AgentEvent, InvestigationStep, INVESTIGATION_PHASE
+│   ├── agent.ts         # AgentEvent, InvestigationStep, INVESTIGATION_PHASE, ARTIFACT_TYPE
 │   ├── domain.ts        # InvestigationReport, CodeLocation, Evidence, modes
 │   ├── browser.ts       # CapturedLog, CapturedRequest, CorrelatedEvidence
 │   ├── schemas.ts       # Zod: InvestigationRequestSchema (input validation)
 │   └── types.ts         # Barrel re-export
-├── engine/              # Core: agent loop, LLM, Playwright bridge, source maps
-│   ├── agent/           # Loop, helpers, tools, prompts, bridges, config
+├── engine/              # Core: agent graph, LLM, Playwright bridge, source maps
+│   ├── agent/           # LangGraph graph, tool definitions, prompts, bridges, config
+│   │   ├── graph/       # LangGraph orchestration: nodes, state, dispatch, helpers
+│   │   ├── loop/        # Tool definitions, normalize, prompts, snapshot-summarizer
+│   │   └── tools/       # Custom tool implementations (fetch-js-snippet, sourcemap-tools)
 │   ├── sourcemap/       # Source map consumer, fetcher, resolver, tracer
 │   ├── observability/   # EventBus, InvestigationLogger, StepAggregator
 │   ├── reporter/        # Markdown report generator
@@ -47,14 +50,18 @@ ai-debug-agent/
 ├── api/                 # Hono REST API + SQLite + SSE streaming
 │   ├── routes/          # investigate.ts, reports.ts
 │   ├── services/        # ThreadService (business logic)
-│   ├── repositories/    # ThreadRepository (Drizzle ORM data access)
+│   ├── repositories/    # ThreadRepository, ArtifactRepository (Drizzle ORM data access)
 │   ├── middleware/      # auth, error-handler, request-logger
 │   ├── db/              # schema.ts, client.ts (SQLite + Drizzle)
-│   └── lib/             # logger.ts, response.ts
-└── web/                 # Vite + React dashboard
-    ├── stores/          # Zustand: investigation-store, settings-store
-    ├── api/             # HTTP client (ky), SSE, type mirrors
-    └── components/      # Composites, features, primitives
+│   └── lib/             # logger.ts, response.ts, dtos.ts
+├── web/                 # Vite + React dashboard
+│   ├── stores/          # Zustand: investigation-store, settings-store
+│   ├── api/             # HTTP client (ky), SSE, type mirrors
+│   ├── design-system/   # tokens.css, globals.css, animations.css
+│   ├── lib/             # utils.ts
+│   └── components/      # Composites, features, primitives
+├── tests/               # Unit + integration tests (Vitest)
+└── ai-debug.config.json # Runtime configuration
 ```
 
 **Dependencies:**
@@ -83,11 +90,11 @@ shared ← engine ← api
            │              engine/                   │
            │                                        │
            │  ┌──────────────────────────────────┐  │
-           │  │        Agent Loop (single)        │  │
+           │  │    LangGraph Investigation       │  │
            │  │                                  │  │
-           │  │  LLM ──► Tool Call ──► Execute ─┐│  │
-           │  │   ▲                             ││  │
-           │  │   └── Tool Result ◄─────────────┘│  │
+           │  │  Agent ──► Tool Dispatch ──► ─┐  │  │
+           │  │   ▲                           │  │  │
+           │  │   └── Tool Results ◄──────────┘  │  │
            │  │                                  │  │
            │  │  Token-based budget awareness    │  │
            │  │  Force finish at last iteration   │  │
@@ -118,17 +125,16 @@ INPUT: URL + hint
          │
          ▼
   ┌──────────────────────────────────┐
-  │        MAIN LOOP (max 50)        │
+  │     LangGraph StateGraph         │
   │                                  │
-  │  1. Call LLM (parallel tool calls) │
-  │  2. OBSERVE → PLAN reasoning      │
-  │  3. Execute tool calls            │
-  │  4. If finish_investigation →     │
-  │     return FinishResult           │
-  │  5. Token-based budget awareness  │
-  │  6. Proactive context compression │
-  │  7. Stall detection               │
-  │  8. Repeat                        │
+  │  START → agent → shouldContinue? │
+  │   ├── tools → after_tools ──┐    │
+  │   │    ├── agent (loop)     │    │
+  │   │    ├── force_finish ────┘    │
+  │   │    └── end → END            │
+  │   ├── no_tools → agent (retry)  │
+  │   ├── emergency → END           │
+  │   └── end → END                 │
   └──────────────────────────────────┘
          │
          ▼
@@ -137,19 +143,25 @@ INPUT: URL + hint
 
 ### 4.2 Key Files
 
-| File                      | Role                                                                                                 |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `agent-loop.ts`           | Main loop: LLM call → parallel tool dispatch → budget awareness → circular detection → error logging |
-| `agent-loop.helpers.ts`   | LLM retry (HTTP + timeout/network), result parsing, smart context compression                        |
-| `agent-loop.tools.ts`     | Tool definitions: FINISH_TOOL, SOURCE_MAP_TOOLS, ASK_USER, FETCH_JS_SNIPPET                          |
-| `agent-loop.types.ts`     | FinishResult, AgentLoopDeps types                                                                    |
-| `agent-loop.normalize.ts` | Parse LLM args → FinishResult                                                                        |
-| `prompts.ts`              | System prompt: OBSERVE→PLAN, STRATEGIES, BUDGET, EVIDENCE SUFFICIENCY, LANGUAGE                      |
-| `llm-client.ts`           | OpenAI SDK wrapper                                                                                   |
-| `config-loader.ts`        | 3-layer config: file → env → request → defaults                                                      |
-| `playwright-bridge.ts`    | Playwright MCP client connection                                                                     |
-| `message-queue.ts`        | User message queue for interactive mode                                                              |
-| `snapshot-summarizer.ts`  | Compress large snapshots for context window                                                          |
+| File                           | Role                                                                                                                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph/nodes.ts`               | Node functions: `createAgentNode`, `createToolNode`, `afterToolsNode`, `forceFinishNode`, `emergencyNode`, `handleReasoningReprompt`. Conditional edges: `shouldContinue`, `shouldContinueAfterTools` |
+| `graph/helpers.ts`             | Config access, serialization, action tracking (`extractSig`, `detectCircularPattern`), context compression (`trimOldToolResults`), budget injection (`injectBudgetMessage`)                           |
+| `graph/tool-dispatch.ts`       | Parallel tool execution with `Promise.allSettled`, prior-fail guards, artifact emission                                                                                                               |
+| `graph/state.ts`               | LangGraph Annotation-based state, channel types, `InvestigationConfigurable` type                                                                                                                     |
+| `graph/constants.ts`           | Thresholds, retry messages, budget intervals, recoverable patterns                                                                                                                                    |
+| `graph/investigation-graph.ts` | LangGraph StateGraph builder: 6 nodes + conditional edges + `MemorySaver` checkpointer                                                                                                                |
+| `graph/result-truncation.ts`   | Per-tool result size limits (snapshot: 4K, network: 3K, console/evaluate: 2K, default: 4K)                                                                                                            |
+| `loop/tools.ts`                | Tool definitions: `FINISH_TOOL`, `SOURCE_MAP_TOOLS`, `ASK_USER_TOOL`, `FETCH_JS_SNIPPET_TOOL`                                                                                                         |
+| `loop/normalize.ts`            | Parse LLM args → `FinishResult` (handles various shapes)                                                                                                                                              |
+| `loop/prompts.ts`              | System prompt: OBSERVE→PLAN, STRATEGIES, BUDGET, EVIDENCE SUFFICIENCY, LANGUAGE, HYPOTHESIS_TRACKING, CAUSAL_REASONING, STATE_INSPECTION, EVENT_TIMELINE                                              |
+| `loop/error-clustering.ts`     | Console error deduplication and clustering by signature                                                                                                                                               |
+| `loop/snapshot-summarizer.ts`  | Compress Playwright YAML snapshots (50K→2-5K), summarize tool results, console error dedup                                                                                                            |
+| `loop/types.ts`                | `FinishResult`, `SourceMapCall` type definitions                                                                                                                                                      |
+| `llm-client.ts`                | LangChain ChatOpenAI wrapper for LangGraph                                                                                                                                                            |
+| `config-loader.ts`             | 3-layer config: file → env → request → defaults                                                                                                                                                       |
+| `playwright-bridge.ts`         | Playwright MCP client connection                                                                                                                                                                      |
+| `message-queue.ts`             | User message queue for interactive mode                                                                                                                                                               |
 
 ### 4.3 Continuous Budget Awareness
 
@@ -157,8 +169,8 @@ Instead of periodic checkpoint injection, the agent receives **token-based** bud
 
 ```
 [Context: 0/128,000 tokens (0%)]
-[Context: 45,200/128,000 tokens (35%)] [Failed: resolve_error_location({...})]
-[Context: 112,000/128,000 tokens (88%)] [Failed: ...]
+[Context: 45,200/128,000 tokens (35%)] [Failed tools: browser_navigate:/path, resolve_error_location:bundle.js]
+[Context: 112,000/128,000 tokens (88%)] [Failed tools: ...]
 ```
 
 The system prompt teaches the agent to self-regulate:
@@ -171,39 +183,42 @@ Token-based is more accurate than iteration-based: one iteration with 5 parallel
 
 ### 4.4 Agent Resilience Features
 
-| Feature                       | Implementation                                                                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Parallel tool execution**   | `Promise.allSettled` — executes multiple tool calls from a single LLM response                                                                          |
-| **Episodic memory**           | `triedActions[]` tracks tool+args+success per iteration, prevents loops                                                                                 |
-| **Duplicate detection**       | Skip re-execution of tool+args that already failed, inject guidance message                                                                             |
-| **LLM retry**                 | Retries on HTTP 429/500-504 AND timeout/network errors (max 2 retries)                                                                                  |
-| **Playwright error recovery** | `RECOVERABLE_PATTERNS` match timeout/navigation/page crash → auto-retry                                                                                 |
-| **Proactive context mgmt**    | Dynamic sliding window: 5→3→1 based on token usage %, type-aware compression                                                                            |
-| **Token-based budget**        | `[Context: X/Y tokens (Z%)]` on every call — agent self-regulates                                                                                       |
-| **Stall detection**           | 3+ consecutive failed iterations → warning; 5+ → force finish                                                                                           |
-| **Self-assessment**           | Agent checks "any untried strategy left?" after each OBSERVE → finishes if exhausted                                                                    |
-| **Force finish**              | Last iteration: mandatory `finish_investigation` with whatever evidence                                                                                 |
-| **Emergency finish**          | If agent exhausts budget without `finish_investigation` → `buildEmergencyResult` synthesizes partial report from collected evidence. Never returns null |
-| **Crash state detection**     | Empty page snapshot → inject guidance: "finish with evidence you have, do not re-navigate"                                                              |
-| **Circular nav detection**    | Last 8 actions uniqueRatio < 0.5 → inject warning: "repeating same sequence, finish now"                                                                |
-| **Purposeful exploration**    | Prompt teaches: continue only if unanswered question + budget < 60% + different action                                                                  |
+| Feature                       | Implementation                                                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Parallel tool execution**   | `Promise.allSettled` — executes multiple tool calls from a single LLM response                                                                   |
+| **Episodic memory**           | `triedActions[]` tracks tool+args+success per iteration, prevents loops                                                                          |
+| **Duplicate detection**       | Skip re-execution of tool+args that already failed, inject guidance message                                                                      |
+| **Playwright error recovery** | `RECOVERABLE_PATTERNS` match timeout/navigation/page crash → auto-retry with 1s delay                                                            |
+| **Proactive context mgmt**    | Dynamic sliding window: `SLIDING_WINDOW_SIZE=6` → `MED_USAGE_WINDOW=4` at 50% → `HIGH_USAGE_WINDOW=3` at 75%, type-aware compression             |
+| **Token-based budget**        | `[Context: X/Y tokens (Z%)]` on every call — agent self-regulates                                                                                |
+| **Stall detection**           | 3+ consecutive failed iterations → warning (`STALL_WARNING_THRESHOLD`); 5+ (`MAX_STALL_COUNT`) → force finish                                    |
+| **Self-assessment**           | Agent checks "any untried strategy left?" after each OBSERVE → finishes if exhausted                                                             |
+| **Force finish**              | Last iteration: mandatory `finish_investigation` with whatever evidence                                                                          |
+| **Emergency finish**          | If agent exhausts budget without `finish_investigation` → `emergencyNode` synthesizes partial report from collected evidence. Never returns null |
+| **Crash state detection**     | Empty page snapshot → inject guidance: "finish with evidence you have, do not re-navigate"                                                       |
+| **Circular nav detection**    | `CIRCULAR_DETECTION_WINDOW=20` actions, pattern matching (len 2–5), `uniqueRatio < 0.35` → inject warning: "repeating same sequence, finish now" |
+| **Per-sig failure counter**   | Consecutive failures for same action signature → auto-skip after 3 (`MAX_SAME_SIG_FAILURES`). Resets on success                                  |
+| **Purposeful exploration**    | Prompt teaches: continue only if unanswered question + budget < 60% + different action                                                           |
+| **No-tool retry**             | If LLM responds without tool calls → `no_tools` node injects retry message, up to `MAX_NO_TOOL_RETRIES=3`                                        |
+| **Reasoning reprompt**        | If LLM omits OBSERVE→PLAN text in first 5 iterations (`MAX_REASONING_REPROMPT_ITERATION`) → re-prompt with guidance                              |
+| **Result truncation**         | Per-tool output size limits before entering message history (snapshot: 4K, network: 3K, console/evaluate: 2K)                                    |
 
 ### 4.5 Tool Categories
 
 **Playwright MCP (browser interaction):**
-`browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_select_option`, `browser_hover`, `browser_scroll`, `browser_console_messages`, `browser_network_requests`, `browser_wait_for`
+`browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_select_option`, `browser_hover`, `browser_scroll`, `browser_console_messages`, `browser_network_requests`, `browser_evaluate`, `browser_wait_for`
 
 **Source Map (code resolution):**
 `fetch_source_map`, `resolve_error_location`
 
 **Custom tools:**
 
-- `finish_investigation` — submit bug report with findings + timeline
+- `finish_investigation` — submit bug report with findings + timeline + hypotheses
 - `ask_user` — ask user questions (interactive mode, uncertainty-based)
 - `fetch_js_snippet` — fetch minified JS and extract lines around error
 
 **State inspection (via `browser_evaluate`):**
-Framework detection (React/Vue/Redux) → read-only state extraction. Guardrails: no mutations, no side effects.
+Framework detection (React/Vue/Redux) → read-only state extraction. Guardrails: no mutations, no side effects. System prompt includes `STATE_INSPECTION` section with framework-specific patterns.
 
 ### 4.6 Evidence-Driven Investigation
 
@@ -233,28 +248,28 @@ Key difference from fixed workflows: agent adapts to the bug type instead of fol
 
 Multiple safety mechanisms prevent the agent from getting stuck or crashing silently:
 
-| Mechanism                   | Description                                                                                                                                        |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Error logging**           | Every exit path emits tagged events: `[CRASH]`, `[EXIT]`, `[WARN]`, `[EMERGENCY]`, `[LOOP]`, `[SKIPPED]`                                           |
-| **Circular detection**      | Sequence matching (len 2-5) + uniqueRatio over 20-action window (threshold 0.35). Normalized signatures: `nav:/path`, `click:ref`, `type:ref:text` |
-| **Per-sig failure counter** | Consecutive failures for same action signature → auto-skip after 3. Resets on success                                                              |
-| **Stall detection**         | 5 consecutive iterations where all tools fail → force finish                                                                                       |
-| **Evidence sufficiency**    | Prompt teaches agent: console error + location = FINISH, reproduced + network = FINISH. "Calling finish_investigation is NEVER wrong"              |
-| **Emergency finish**        | Loop always returns a `FinishResult` — if agent doesn't call `finish_investigation`, `buildEmergencyResult()` produces a partial report            |
+| Mechanism                   | Description                                                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error logging**           | Every exit path emits tagged events: `[CRASH]`, `[EXIT]`, `[WARN]`, `[EMERGENCY]`, `[LOOP]`, `[SKIPPED]`                                       |
+| **Circular detection**      | Sequence matching (len 2–5) + `uniqueRatio` over 20-action window (threshold 0.35). Normalized signatures: `toolName:key`                      |
+| **Per-sig failure counter** | Consecutive failures for same action signature → auto-skip after 3. Resets on success                                                          |
+| **Stall detection**         | 5 consecutive iterations where all tools fail → force finish. Early warning at 3 consecutive fails                                             |
+| **Budget checkpoints**      | Every 10 iterations (`CHECKPOINT_INTERVAL`), inject checkpoint message forcing agent to assess hypotheses and decide: continue or finish       |
+| **Evidence sufficiency**    | Prompt teaches agent: console error + location = FINISH, reproduced + network = FINISH. "Calling finish_investigation is NEVER wrong"          |
+| **Emergency finish**        | Graph always returns a `FinishResult` — if agent doesn't call `finish_investigation`, `emergencyNode` produces a partial report with reasoning |
 
 ---
 
 ## 5. Observability & Reporting
 
-`engine/src/observability/` + `engine/src/reporter/`
+`engine/src/observability/`
 
 | File                      | Role                                                                    |
 | ------------------------- | ----------------------------------------------------------------------- |
 | `event-bus.ts`            | Typed pub/sub — `emit()`, `subscribe()`, `clear()` for `AgentEvent`     |
 | `step-aggregator.ts`      | Transform `AgentEvent` → `InvestigationStep` with type/summary/metadata |
-| `investigation-logger.ts` | Persist investigation to markdown log file with token/cost tracking     |
-| `logger.ts`               | Shared pino logger instance                                             |
-| `reporter/report.ts`      | `buildMarkdown()` → full investigation report · `saveReport()` to disk  |
+| `investigation-logger.ts` | In-memory token/cost tracking (file-free)                               |
+| `logger.ts`               | Console logger — subscribes to EventBus                                 |
 
 **Data flow:**
 
@@ -262,15 +277,15 @@ Multiple safety mechanisms prevent the agent from getting stuck or crashing sile
 agentLoop emits AgentEvent
     │
     ├── EventBus.subscribe() → StepAggregator → InvestigationStep
-    ├── EventBus.subscribe() → InvestigationLogger → markdown log file
+    ├── EventBus.subscribe() → InvestigationLogger → in-memory token tracking
     ├── EventBus.subscribe() → ThreadService.handleEvent → SQLite (events table)
-    └── EventBus.subscribe() → SSE stream → Web Dashboard
+    ├── EventBus.subscribe() → ThreadService (artifact_captured) → SQLite (artifacts table)
+    └── EventBus.subscribe() → SSE stream → Web Dashboard (inline display)
 
-agentLoop returns FinishResult
+graph.invoke() returns finalState.result (FinishResult)
     │
-    └── InvestigationService.buildReport() → InvestigationReport
-        ├── saveReport() → debug-reports/*.md
-        └── ThreadService.completeThread() → SQLite (threads.report)
+    └── buildReport() → InvestigationReport
+        └── ThreadService.completeThread() → SQLite (threads.report JSON)
 ```
 
 **Investigation logger tracks:**
@@ -278,7 +293,6 @@ agentLoop returns FinishResult
 - Token usage per LLM call (prompt + completion)
 - Estimated cost ($0.15/1M input, $0.60/1M output)
 - Total duration
-- All events formatted as readable markdown
 
 ### 5.1 InvestigationService (Pipeline Orchestrator)
 
@@ -292,8 +306,10 @@ runInvestigationPipeline(request, deps)
   → createEventBus()
   → createInvestigationLogger(eventBus, url, hint)
   → createPlaywrightBridge(headless)
-  → createLLMClient(config)
-  → runAgentLoop(url, hint, deps)     // returns FinishResult (never null — emergency finish as safety net)
+  → createChatModel(config)
+  → convertTools(openAiTools → LangChainTool[])
+  → createInvestigationGraph({ model, tools, fetchJsSnippet })
+  → graph.invoke(initialState, { configurable, recursionLimit: 200 })
   → buildReport(result, url, startTime)
   → logger.writeFooter() (token + cost summary)
 ```
@@ -318,7 +334,7 @@ Hono server on `:3100`.
 | `POST` | `/investigate/:id/message` | Send user message (interactive)                     |
 | `GET`  | `/reports`                 | List completed reports                              |
 
-**Architecture:** Routes → ThreadService (business logic) → ThreadRepository (Drizzle ORM) → SQLite
+**Architecture:** Routes → ThreadService (business logic) → ThreadRepository + ArtifactRepository (Drizzle ORM) → SQLite
 
 ### 6.1 Investigation Queue
 
@@ -335,28 +351,37 @@ ThreadService uses a **promise-chain mutex** to serialize investigations (single
 
 - `threads` table: id, status, url, hint, mode, report (JSON), error, created_at
 - `events` table: id, thread_id (FK), data (JSON AgentEvent), created_at
+- `artifacts` table: id, thread_id (FK), type, name, content, tool_call_id, created_at
 
-### 6.1 SSE Events
+### 6.2 SSE Events
 
 ```typescript
 type AgentEvent =
-  | { type: 'reasoning'; agent: string; text: string }
-  | { type: 'tool_call'; agent: string; tool: string; args: unknown }
+  | { type: 'reasoning'; agent: AgentName; text: string }
+  | { type: 'tool_call'; agent: AgentName; tool: string; args: unknown }
   | {
       type: 'tool_result';
-      agent: string;
+      agent: AgentName;
       tool: string;
       success: boolean;
       durationMs: number;
       result?: string;
     }
-  | { type: 'llm_usage'; agent: string; promptTokens: number; completionTokens: number }
-  | { type: 'error'; agent: string; message: string }
-  | { type: 'investigation_phase'; phase: InvestigationPhase } // investigating | synthesizing | reflecting
+  | { type: 'llm_usage'; agent: AgentName; promptTokens: number; completionTokens: number }
+  | { type: 'error'; agent: AgentName; message: string }
+  | { type: 'investigation_phase'; phase: InvestigationPhase }
+  | { type: 'investigation_queued'; position: number; message: string }
   | { type: 'sourcemap_resolved'; bundleUrl: string; originalFile: string; line: number }
   | { type: 'sourcemap_failed'; bundleUrl: string; reason: string }
-  | { type: 'screenshot_captured'; agent: string; data: string }
-  | { type: 'waiting_for_input'; agent: string; prompt: string };
+  | { type: 'screenshot_captured'; agent: AgentName; data: string }
+  | { type: 'waiting_for_input'; agent: AgentName; prompt: string }
+  | {
+      type: 'artifact_captured';
+      artifactType: ArtifactType;
+      name: string;
+      content: string;
+      toolCallId?: string;
+    };
 ```
 
 ---
@@ -382,6 +407,8 @@ type InvestigationReport = {
   evidence: Evidence[];
   networkFindings: string[];
   timeline: string[];
+  hypotheses: { id: string; text: string; status: 'confirmed' | 'rejected' | 'plausible' | 'untested' }[];
+  conclusion: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   cannotDetermine: boolean;
   assumptions: string[];
@@ -393,12 +420,12 @@ type InvestigationReport = {
 type Evidence = { type: string; description: string; data?: unknown };
 
 // shared/agent.ts
-type InvestigationPhase = 'investigating' | 'synthesizing' | 'reflecting';
+type InvestigationPhase = 'scouting' | 'investigating' | 'source_analysis' | 'reflecting' | 'synthesizing';
 type StepType = 'thinking' | 'action' | 'result' | 'phase_change' | 'error';
-type InvestigationStep = { timestamp: string; agent: string; type: StepType; summary: string; detail?: string; metadata?: Record<string, unknown> };
+type InvestigationStep = { timestamp: string; agent: AgentName; type: StepType; summary: string; detail?: string; metadata?: Record<string, unknown> };
 
 // shared/schemas.ts (Zod validation)
-InvestigationRequestSchema = { url, hint?, mode, callbackUrl?, sourcemapDir?, config? }
+InvestigationRequestSchema = { url, hint?, mode (default: 'autonomous'), callbackUrl?, sourcemapDir?, config? }
 ```
 
 ---
@@ -409,6 +436,7 @@ InvestigationRequestSchema = { url, hint?, mode, callbackUrl?, sourcemapDir?, co
 
 ```jsonc
 {
+  "baseUrl": "http://localhost:3000",
   "llm": {
     "default": {
       "provider": "ollama-cloud",
@@ -420,6 +448,7 @@ InvestigationRequestSchema = { url, hint?, mode, callbackUrl?, sourcemapDir?, co
   },
   "agent": {
     "maxIterations": 50, // Budget per investigation
+    "contextWindow": 128000, // LLM context window size
     "taskTimeoutMs": 90000,
     "maxRetries": 3,
     "mode": "interactive", // or "autonomous"
@@ -430,6 +459,11 @@ InvestigationRequestSchema = { url, hint?, mode, callbackUrl?, sourcemapDir?, co
     "timeout": 30000,
     "viewport": { "width": 1280, "height": 720 },
   },
+  "sourcemap": {
+    "enabled": true,
+    "localPath": null,
+    "buildDir": "./dist",
+  },
   "output": {
     "reportsDir": "./debug-reports",
     "streamLevel": "summary",
@@ -439,15 +473,17 @@ InvestigationRequestSchema = { url, hint?, mode, callbackUrl?, sourcemapDir?, co
 
 API keys resolve `$ENV_VAR` syntax automatically.
 
+> **Note:** `mode` defaults to `'interactive'` in config schema but `'autonomous'` in `InvestigationRequestSchema` and web dashboard settings store. Request-level mode takes precedence.
+
 ---
 
 ## 9. MCP Server
 
 Exposes `investigate_bug` tool via stdio for MCP hosts (Claude, Cursor).
 
-51 source files organized as:
+Source files organized as:
 
-- `tools/` — 6 tool implementations (investigate-bug, fetch-source-map, resolve-error-location, finish-investigation, ask-user, dispatch-browser-task)
+- `tools/` — tool implementations (investigate-bug, fetch-source-map, resolve-error-location, finish-investigation, ask-user)
 - `sourcemap/` — consumer, fetcher, resolver, tracer, fallback
 - `constants/` — tool definitions, browser settings, guardrails, selectors
 - `types/` — actions, browser, DOM, guardrails, network
@@ -463,31 +499,36 @@ Exposes `investigate_bug` tool via stdio for MCP hosts (Claude, Cursor).
 
 ## 10. Web Dashboard
 
-Vite + React SPA on `:5173`. 34 source files.
+Vite + React SPA on `:5173`. 40 source files.
 
 **State management:** Zustand
 
 - `investigation-store.ts` — investigation CRUD, SSE connection, hydration from API, message sending
-- `settings-store.ts` — API key (localStorage), investigation mode (interactive/autonomous)
+- `settings-store.ts` — API key (localStorage), investigation mode (default: autonomous)
 
 **API layer:** `ky` HTTP client → `/api` prefix, auto-injects `X-API-Key` from localStorage
 
-**Components (3 layers):**
+**Design system:** `design-system/` — CSS tokens, global styles, animations
 
-| Layer      | Components                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Primitives | Badge, Button, GlassCard, Input, Skeleton, StatusDot                                                                        |
-| Composites | ProgressStepper (Scout→Plan→Execute→Reflect→Report), CollapsibleSection                                                     |
-| Features   | ChatPanel, ChatInput, ChatMessage, ReportPanel, MarkdownRenderer, Sidebar, Header                                           |
-| Events     | ReasoningEvent, ToolCallEvent, ErrorEvent, LlmUsageEvent, PhaseEvent, ScreenshotEvent, SourceMapEvent, WaitingForInputEvent |
+**Components (4 layers):**
+
+| Layer      | Components                                                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primitives | Button, Skeleton, StatusDot                                                                                                                                            |
+| Composites | ProgressStepper, CollapsibleSection                                                                                                                                    |
+| Features   | ChatPanel, ChatInput, ChatMessage, ReportPanel, EvidencePanel, PhaseGroup, MarkdownRenderer, Sidebar, Header                                                           |
+| Events     | ReasoningEvent, ToolCallEvent, ErrorEvent, PhaseEvent, ScreenshotEvent, SourceMapEvent, WaitingForInputEvent, ArtifactEvent, QueuedEvent, LlmUsageEvent, result-parser |
+
+**Other:** `ErrorBoundary.tsx` (root error boundary), `lib/utils.ts` (utility functions)
 
 **Key features:**
 
 - Real-time SSE event stream → chat UI
 - Auto-reconnect SSE for running investigations on page reload (hydration)
 - 5-phase ProgressStepper with current phase highlighting
-- Expandable tool call/result cards
+- Expandable tool call/result cards with parsed result display
 - Report panel with severity, evidence, code location, network findings
+- Evidence panel with artifact display (snapshots, console, network)
 - Interactive message input for `ask_user` responses
 - Vite proxy: `/api` → `http://localhost:3100`
 
@@ -499,16 +540,18 @@ Vite + React SPA on `:5173`. 34 source files.
 User (Web) → API
   → ThreadService.createThread() → SQLite insert
   → ThreadService.startPipeline()
-    → runInvestigationPipeline()
+    → runInvestigationPipeline(request, deps)
       → loadConfig(overrides)
       → createEventBus() + createInvestigationLogger()
       → createPlaywrightBridge(headless) → Chromium
-      → createLLMClient(config)
-      → runAgentLoop(url, hint, deps)
-        → [LLM call → parallel tool dispatch → token-based budget awareness]
+      → createChatModel(config)
+      → convertTools(openAiTools → LangChainTool[])
+      → createInvestigationGraph({ model, tools, fetchJsSnippet })
+      → graph.invoke(initialState, { configurable, recursionLimit: 200 })
+        → [agent node → parallel tool dispatch → after_tools → budget awareness]
         → triedActions[] tracks episodic memory
         → RECOVERABLE_PATTERNS retry Playwright errors
-        → FinishResult
+        → FinishResult (from finish_investigation or emergencyNode)
       → buildReport(result, url, startTime)
       → logger.writeFooter() (token/cost summary)
   → ThreadService.completeThread() → SQLite update

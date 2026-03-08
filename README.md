@@ -110,7 +110,6 @@ Edit `ai-debug.config.json` — API keys reference env vars with `$` prefix:
     },
   },
   "output": {
-    "reportDir": "./debug-reports",
     "streamLevel": "summary", // "summary" | "verbose"
   },
 }
@@ -129,7 +128,6 @@ Edit `ai-debug.config.json` — API keys reference env vars with `$` prefix:
 | `PORT`              | REST API server port                                           | `3100`  |
 | `BROWSER_HEADLESS`  | Show browser window (`false` to watch)                         | `true`  |
 | `LOG_LEVEL`         | Log level: `debug`, `info`, `warn`, `error`                    | `info`  |
-| `LOGS_DIR`          | Directory for investigation log files                          | `logs`  |
 
 ---
 
@@ -248,20 +246,19 @@ POST https://your-callback.com/questions
 
 ## Report Output
 
-Reports are saved to `./debug-reports/` as markdown files.
+Reports are stored in SQLite database and displayed in the web dashboard.
 
-**Sections:**
+**Report fields:**
 
-1. **Header** — URL, severity, duration, date
-2. **Root Cause** — Technical explanation
+1. **Summary** — Brief description of the bug
+2. **Root Cause** — Technical root cause analysis
 3. **Code Location** — Original file:line (via source map)
-4. **Data Flow** — Component → service → API → state
-5. **Suggested Fix** — Before/after code
-6. **Hypotheses Investigated** — Table with status (✅/❌/⚠️) and confidence
-7. **Repro Steps** — Actionable steps to reproduce
-8. **Evidence** — Network, console, DOM, source observations
-9. **Assumptions** — What the agent assumed (when not asked)
-10. **Footer** — Agent version
+4. **Suggested Fix** — Explanation and code changes
+5. **Evidence** — Console errors, network errors, findings
+6. **Hypotheses** — Table with status (confirmed/rejected/plausible)
+7. **Repro Steps** — Steps to reproduce
+8. **Timeline** — Ordered events leading to the bug
+9. **Network Findings** — Relevant API calls and responses
 
 ---
 
@@ -312,17 +309,17 @@ ai-debug-agent/
 │   ├── agent/            Loop, LLM client, config, skill-loader
 │   ├── sourcemap/        Source map parser (consumer, resolver)
 │   ├── service/          InvestigationService facade
-│   ├── reporter/         Report generator + registry
-│   ├── observability/    EventBus, logger, investigation-logger
+│   ├── reporter/         Report markdown builder (legacy)
+│   ├── observability/    EventBus, logger, token tracking
 │   └── skills/           21 skill files (.skill.md)
 ├── api/              Hono REST API
-│   ├── routes/           /investigate, /reports
+│   ├── routes/           /investigate, /reports, /threads
 │   ├── middleware/       API key auth
-│   └── repositories/    Thread repository
+│   ├── repositories/    Thread + artifact repositories
+│   └── db/              SQLite schema (Drizzle ORM)
 ├── tests/            vitest tests
 ├── .env.example      Environment variables template
-├── ai-debug.config.example.json  Config file template
-└── logs/             Investigation log files (auto-created)
+└── ai-debug.config.example.json  Config file template
 ```
 
 ---
@@ -380,24 +377,16 @@ Skill files: `engine/skills/**/*.skill.md`
 
 ---
 
-## Investigation Logs
+## Investigation Observability
 
-Every investigation is logged to a markdown file for post-mortem debugging:
+All investigation events are stored in SQLite and streamed via SSE to the web dashboard:
 
-```
-logs/
-├── 20260304_161500-example.com_products.md
-├── 20260304_163000-my-app.vercel.app.md
-└── ...
-```
-
-Logs contain timestamped entries of every agent action:
-
-- 💭 Reasoning steps
+- 💭 Reasoning steps (inline in chat)
 - 🔧 Tool calls with arguments
-- 🧪 Hypotheses with confidence scores
+- 🧪 Hypotheses with status
 - ✅/❌ Tool results with timing
 - 🗺️ Source map resolutions
+- 📸 Artifacts (snapshots, console logs, network requests) displayed inline
 - ⚠️ Errors
 
 ---

@@ -29,7 +29,7 @@ export const getDb = (): DrizzleDb => {
   db.run(sql`
     CREATE TABLE IF NOT EXISTS threads (
       id TEXT PRIMARY KEY,
-      status TEXT NOT NULL DEFAULT 'running',
+      status TEXT NOT NULL DEFAULT 'queued',
       url TEXT NOT NULL,
       hint TEXT DEFAULT '',
       mode TEXT NOT NULL DEFAULT 'interactive',
@@ -49,6 +49,20 @@ export const getDb = (): DrizzleDb => {
   `);
 
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS artifacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tool_call_id TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_artifacts_thread_id ON artifacts(thread_id)`);
 
   instance = db;
   return instance;

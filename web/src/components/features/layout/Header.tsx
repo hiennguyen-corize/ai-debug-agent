@@ -20,7 +20,8 @@ export function Header() {
 
   useEffect(() => {
     if (!isLive) return
-    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    const tick = (): void => { if (!document.hidden) setTick((t) => t + 1) }
+    const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [isLive])
 

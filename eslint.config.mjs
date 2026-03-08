@@ -72,6 +72,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ['engine/src/agent/graph/investigation-graph.ts'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
+  },
+  {
     files: ['tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',

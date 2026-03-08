@@ -9,7 +9,8 @@
       "#observability/*.js": ["./src/observability/*.ts"],
       "#reporter/*.js": ["./src/reporter/*.ts"],
       "#service/*.js": ["./src/service/*.ts"],
-      "#sourcemap/*.js": ["./src/sourcemap/*.ts"]
+      "#sourcemap/*.js": ["./src/sourcemap/*.ts"],
+      "#graph/*.js": ["./src/agent/graph/*.ts"]
     }
   },
   "include": ["src/**/*.ts"],

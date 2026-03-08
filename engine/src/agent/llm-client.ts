@@ -1,28 +1,27 @@
 /**
- * LLM client — OpenAI SDK wrapper, single role.
+ * LLM client — LangChain ChatOpenAI for LangGraph.
  */
 
-import OpenAI from 'openai';
+import { ChatOpenAI } from '@langchain/openai';
 import type { AppConfig } from './config-loader.js';
 
-export type LLMClient = {
-  client: OpenAI;
-  model: string;
-  provider: string;
-  supportsVision: boolean;
+const LLM_TIMEOUT_MS = 60_000;
+const LLM_TEMPERATURE = 0;
+const LLM_MAX_RETRIES = 3;
+
+/** ChatOpenAI for LangGraph — supports all OpenAI-compatible endpoints. */
+export const createChatModel = (config: AppConfig): ChatOpenAI => {
+  const llmConfig = config.llm.default;
+  return new ChatOpenAI({
+    model: llmConfig.model,
+    configuration: {
+      baseURL: llmConfig.baseURL,
+      apiKey: llmConfig.apiKey,
+    },
+    temperature: LLM_TEMPERATURE,
+    timeout: LLM_TIMEOUT_MS,
+    maxRetries: LLM_MAX_RETRIES,
+    modelKwargs: { parallel_tool_calls: false },
+  });
 };
 
-export const createLLMClient = (config: AppConfig): LLMClient => {
-  const llmConfig = config.llm.default;
-  const client = new OpenAI({
-    apiKey: llmConfig.apiKey || 'not-needed',
-    baseURL: llmConfig.baseURL,
-    timeout: 60_000,
-  });
-  return {
-    client,
-    model: llmConfig.model,
-    provider: llmConfig.provider,
-    supportsVision: llmConfig.supportsVision,
-  };
-};

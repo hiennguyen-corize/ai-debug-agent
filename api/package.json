@@ -15,7 +15,7 @@
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",
-        "dev": "node --watch dist/server.js"
+        "dev": "node --watch-path=dist dist/server.js"
     },
     "dependencies": {
         "@ai-debug/engine": "workspace:*",

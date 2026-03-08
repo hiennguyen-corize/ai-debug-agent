@@ -12,7 +12,5 @@ export const errorHandler: ErrorHandler = (err, c) => {
   }
 
   logger.error({ err }, '[API Error]');
-
-  const message = err instanceof Error ? err.message : 'Internal server error';
-  return c.json({ error: message }, 500);
+  return c.json({ error: 'Internal server error' }, 500);
 };

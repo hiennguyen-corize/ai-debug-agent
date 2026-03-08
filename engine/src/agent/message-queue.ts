@@ -6,10 +6,12 @@
 export type MessageQueue = {
   push: (message: string) => void;
   next: () => Promise<string>;
+  cancel: () => void;
 };
 
 export const createMessageQueue = (): MessageQueue => {
   let resolve: ((msg: string) => void) | null = null;
+  let reject: ((err: Error) => void) | null = null;
   const pending: string[] = [];
 
   return {
@@ -17,6 +19,7 @@ export const createMessageQueue = (): MessageQueue => {
       if (resolve !== null) {
         const r = resolve;
         resolve = null;
+        reject = null;
         r(message);
       } else {
         pending.push(message);
@@ -26,7 +29,19 @@ export const createMessageQueue = (): MessageQueue => {
     next(): Promise<string> {
       const queued = pending.shift();
       if (queued !== undefined) return Promise.resolve(queued);
-      return new Promise<string>((r) => { resolve = r; });
+      return new Promise<string>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+    },
+
+    cancel(): void {
+      if (reject !== null) {
+        const r = reject;
+        resolve = null;
+        reject = null;
+        r(new Error('Message queue cancelled'));
+      }
     },
   };
 };

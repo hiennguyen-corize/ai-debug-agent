@@ -85,8 +85,8 @@ export function ReportPanel({ report }: { report: InvestigationReport }) {
       {(report.networkFindings ?? []).length > 0 && (
         <Section title="Network Findings">
           <ul className="space-y-1">
-            {(report.networkFindings ?? []).map((finding, i) => (
-              <li key={i} className="text-sm text-text-secondary font-mono">• {finding}</li>
+            {(report.networkFindings ?? []).map((finding) => (
+              <li key={finding} className="text-sm text-text-secondary font-mono">• {finding}</li>
             ))}
           </ul>
         </Section>

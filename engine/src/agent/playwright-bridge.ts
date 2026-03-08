@@ -127,7 +127,8 @@ export const createPlaywrightBridge = async (headless = true): Promise<Playwrigh
   const call = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
     if (closed) throw new Error('PlaywrightBridge is closed');
     // Strip filename arg — force inline content, never write to disk
-    const { filename: _dropped, ...cleanArgs } = args;
+    const cleanArgs = { ...args };
+    delete cleanArgs['filename'];
     try {
       const result = await client.callTool({ name, arguments: cleanArgs });
       return resolveFileReferences(result.content);

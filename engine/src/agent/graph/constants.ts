@@ -22,6 +22,7 @@ export const MIN_ACTIONS_FOR_PATTERN = 8;
 export const MIN_PATTERN_LEN = 2;
 export const MAX_PATTERN_LEN = 5;
 export const CIRCULAR_RATIO_THRESHOLD = 0.25;
+export const CIRCULAR_COOLDOWN = 5;
 
 // ── Context compression ──────────────────────────────────────────────────
 export const MAX_NETWORK_LINES = 5;

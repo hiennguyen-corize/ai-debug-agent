@@ -13,13 +13,14 @@ import { AGENT_NAME } from '@ai-debug/shared';
 import type { InvestigationPhase } from '@ai-debug/shared';
 import { normalizeFinishResult } from '#agent/loop/normalize.js';
 import { isAskUserTool } from '#agent/loop/tools.js';
-import { MAX_REASONING_REPROMPT_ITERATION } from '#graph/constants.js';
 import type { FinishResult } from '#agent/loop/types.js';
 import type { InvestigationStateType, TriedAction, FetchJsSnippetFn, LangChainTool } from '#graph/state.js';
 import { interrupt } from '@langchain/langgraph';
 import {
   MAX_NO_TOOL_RETRIES,
   MAX_STALL_COUNT,
+  MAX_REASONING_REPROMPT_ITERATION,
+  CIRCULAR_COOLDOWN,
   FORCE_FINISH_MESSAGE,
   STALL_FINISH_MESSAGE,
   CRASHED_PAGE_GUIDANCE,
@@ -187,7 +188,6 @@ export const afterToolsNode = (state: InvestigationStateType, config: RunnableCo
     return { stallCount: newStallCount, messages: [...state.messages, new HumanMessage({ content: CRASHED_PAGE_GUIDANCE })] };
   }
 
-  const CIRCULAR_COOLDOWN = 5;
   if (detectCircularPattern(triedActions)) {
     const lastCircularIter = state.lastCircularIter;
     if (iteration - lastCircularIter >= CIRCULAR_COOLDOWN) {

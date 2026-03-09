@@ -1,10 +1,11 @@
 /**
- * Artifact repository — CRUD for investigation artifacts.
+ * ArtifactRepository — data access for investigation artifacts.
+ * Uses DI pattern consistent with ThreadRepository.
  */
 
 import { eq } from 'drizzle-orm';
-import { getDb } from '#db/client.js';
 import { artifacts, type Artifact } from '#db/schema.js';
+import type { AppDatabase } from '#db/client.js';
 import type { ArtifactType } from '@ai-debug/shared';
 
 type InsertArtifact = {
@@ -15,15 +16,23 @@ type InsertArtifact = {
   toolCallId?: string | undefined;
 };
 
-export const insertArtifact = (data: InsertArtifact): void => {
-  getDb().insert(artifacts).values({
-    threadId: data.threadId,
-    type: data.type,
-    name: data.name,
-    content: data.content,
-    toolCallId: data.toolCallId ?? null,
-  }).run();
+export type ArtifactRepository = {
+  insert(data: InsertArtifact): void;
+  findByThread(threadId: string): Artifact[];
 };
 
-export const getArtifactsByThread = (threadId: string): Artifact[] =>
-  getDb().select().from(artifacts).where(eq(artifacts.threadId, threadId)).all();
+export const createArtifactRepository = (db: AppDatabase): ArtifactRepository => ({
+  insert(data: InsertArtifact): void {
+    db.insert(artifacts).values({
+      threadId: data.threadId,
+      type: data.type,
+      name: data.name,
+      content: data.content,
+      toolCallId: data.toolCallId ?? null,
+    }).run();
+  },
+
+  findByThread(threadId: string): Artifact[] {
+    return db.select().from(artifacts).where(eq(artifacts.threadId, threadId)).all();
+  },
+});

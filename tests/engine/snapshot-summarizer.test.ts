@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractErrorSignature, summarizeToolResult } from '../../engine/src/agent/loop/snapshot-summarizer.js';
+import { extractErrorSignature, summarizeToolResult } from '../../engine/src/agent/definitions/snapshot-summarizer.js';
 
 describe('extractErrorSignature', () => {
   it('normalizes quoted property names', () => {

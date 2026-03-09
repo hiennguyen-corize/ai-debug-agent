@@ -6,8 +6,8 @@
 import { ToolMessage } from '@langchain/core/messages';
 import { AGENT_NAME, ARTIFACT_TYPE } from '@ai-debug/shared';
 import type { InvestigationPhase, ArtifactType } from '@ai-debug/shared';
-import { summarizeToolResult } from '#agent/loop/snapshot-summarizer.js';
-import { isSourceMapTool, isFetchJsSnippetTool } from '#agent/loop/tools.js';
+import { summarizeToolResult } from '#agent/definitions/snapshot-summarizer.js';
+import { isSourceMapTool, isFetchJsSnippetTool } from '#agent/definitions/tools.js';
 import type { TriedAction, InvestigationConfigurable, ToolResult, ToolCallInfo, ParallelResult, FetchJsSnippetFn } from '#graph/state.js';
 import { RECOVERABLE_PATTERNS, MAX_SAME_SIG_FAILURES, RETRY_DELAY_MS, EVENT_RESULT_PREVIEW_LEN } from '#graph/constants.js';
 import { stringifyResult, extractArgsKey, extractSig, getConsecutiveSigFailures } from '#graph/helpers.js';

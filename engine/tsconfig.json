@@ -10,7 +10,8 @@
       "#reporter/*.js": ["./src/reporter/*.ts"],
       "#service/*.js": ["./src/service/*.ts"],
       "#sourcemap/*.js": ["./src/sourcemap/*.ts"],
-      "#graph/*.js": ["./src/agent/graph/*.ts"]
+      "#graph/*.js": ["./src/agent/graph/*.ts"],
+      "#graph/nodes/*.js": ["./src/agent/graph/nodes/*.ts"]
     }
   },
   "include": ["src/**/*.ts"],

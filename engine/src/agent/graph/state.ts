@@ -8,7 +8,7 @@
 import { Annotation } from '@langchain/langgraph';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { EventBus } from '#observability/event-bus.js';
-import type { FinishResult, SourceMapCall } from '#agent/loop/types.js';
+import type { FinishResult, SourceMapCall } from '#agent/definitions/types.js';
 
 // ── Graph types ──────────────────────────────────────────────────────────
 

@@ -1,14 +1,15 @@
 /**
  * Database client — Drizzle ORM + better-sqlite3.
  * Schema is defined in schema.ts (single source of truth).
+ * Migrations are in migrate.ts.
  */
 
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { sql } from 'drizzle-orm';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import * as schema from './schema.js';
+import { runMigrations } from './migrate.js';
 
 const DB_PATH = process.env['DB_PATH'] ?? 'data/debug-agent.db';
 
@@ -26,43 +27,7 @@ export const getDb = (): DrizzleDb => {
 
   const db = drizzle(sqlite, { schema });
 
-  db.run(sql`
-    CREATE TABLE IF NOT EXISTS threads (
-      id TEXT PRIMARY KEY,
-      status TEXT NOT NULL DEFAULT 'queued',
-      url TEXT NOT NULL,
-      hint TEXT DEFAULT '',
-      mode TEXT NOT NULL DEFAULT 'interactive',
-      report TEXT,
-      error TEXT,
-      created_at INTEGER NOT NULL
-    )
-  `);
-
-  db.run(sql`
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-      data TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    )
-  `);
-
-  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_thread_id ON events(thread_id)`);
-
-  db.run(sql`
-    CREATE TABLE IF NOT EXISTS artifacts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      name TEXT NOT NULL,
-      content TEXT NOT NULL,
-      tool_call_id TEXT,
-      created_at INTEGER NOT NULL
-    )
-  `);
-
-  db.run(sql`CREATE INDEX IF NOT EXISTS idx_artifacts_thread_id ON artifacts(thread_id)`);
+  runMigrations(db);
 
   instance = db;
   return instance;

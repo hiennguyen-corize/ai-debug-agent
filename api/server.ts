@@ -11,18 +11,24 @@ import { errorHandler } from '#middleware/error-handler.js';
 import { requestLogger } from '#middleware/request-logger.js';
 import { getDb } from '#db/client.js';
 import { createThreadRepository } from '#repositories/thread-repository.js';
+import { createArtifactRepository } from '#repositories/artifact-repository.js';
+import { createEventDispatcher } from '#services/event-dispatcher.js';
+import { createPipelineQueue } from '#services/pipeline-queue.js';
 import { createThreadService } from '#services/thread-service.js';
 import { createInvestigateRoute } from '#routes/investigate.js';
 import { createReportsRoute } from '#routes/reports.js';
 
 const db = getDb();
 const threadRepo = createThreadRepository(db);
+const artifactRepo = createArtifactRepository(db);
 
 // Clean up orphaned threads from previous crash/restart
 const cleaned = threadRepo.cleanupOrphaned();
 if (cleaned > 0) logger.info(`Cleaned up ${cleaned.toString()} orphaned thread(s) from previous session`);
 
-const threadService = createThreadService(threadRepo);
+const dispatcher = createEventDispatcher();
+const queue = createPipelineQueue();
+const threadService = createThreadService({ repo: threadRepo, artifactRepo, dispatcher, queue });
 
 const app = new Hono();
 

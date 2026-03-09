@@ -5,6 +5,9 @@
  * Reduces ~50K char snapshots to ~2-5K while preserving agent-actionable info.
  */
 
+import { summarizeConsoleErrors } from '#agent/definitions/error-clustering.js';
+export { extractErrorSignature } from '#agent/definitions/error-clustering.js';
+
 const INTERACTIVE_ROLES = new Set([
   'button', 'link', 'textbox', 'input', 'combobox', 'checkbox', 'radio',
   'menuitem', 'tab', 'switch', 'slider', 'spinbutton', 'searchbox',
@@ -146,6 +149,4 @@ export const summarizeToolResult = (text: string, maxChars = 8000): string => {
     : result;
 };
 
-export { extractErrorSignature } from '#agent/loop/error-clustering.js';
-import { summarizeConsoleErrors } from '#agent/loop/error-clustering.js';
 

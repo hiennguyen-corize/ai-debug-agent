@@ -4,39 +4,21 @@
 
 import { randomUUID } from 'node:crypto';
 import type { ThreadRepository, ThreadRecord } from '#repositories/thread-repository.js';
-import { insertArtifact } from '#repositories/artifact-repository.js';
-import type { AgentEvent, InvestigationReport, InvestigationMode, InvestigationRequest } from '@ai-debug/shared';
+import type { ArtifactRepository } from '#repositories/artifact-repository.js';
+import type { AgentEvent, InvestigationReport, InvestigationRequest } from '@ai-debug/shared';
 import { INVESTIGATION_MODE, AGENT_NAME } from '@ai-debug/shared';
 import { createMessageQueue, type MessageQueue } from '@ai-debug/engine/agent/message-queue';
-import type { ThreadListItem, ThreadDetail, CreateThreadResult, ReportListItem } from '#lib/dtos.js';
+import type { EventDispatcher, EventSubscriber } from './event-dispatcher.js';
+import type { PipelineQueue } from './pipeline-queue.js';
+import { toListItem, toDetail, type ThreadListItem, type ThreadDetail, type CreateThreadResult, type ReportListItem } from '#lib/dtos.js';
 import { logger } from '#lib/logger.js';
 
-type EventSubscriber = (event: AgentEvent) => void;
-
-type StartInvestigationInput = {
-  url: string;
-  hint: string;
-  mode: InvestigationMode;
-  config?: Record<string, unknown> | undefined;
-  callbackUrl?: string | undefined;
+type ThreadServiceDeps = {
+  repo: ThreadRepository;
+  artifactRepo: ArtifactRepository;
+  dispatcher: EventDispatcher;
+  queue: PipelineQueue;
 };
-
-const toListItem = (t: ThreadRecord): ThreadListItem => ({
-  threadId: t.id,
-  status: t.status,
-  request: { url: t.url, hint: t.hint, mode: t.mode },
-  report: t.report,
-  error: t.error,
-  createdAt: t.createdAt.getTime(),
-});
-
-const toDetail = (t: ThreadRecord): ThreadDetail => ({
-  threadId: t.id,
-  status: t.status,
-  request: { url: t.url, hint: t.hint, mode: t.mode },
-  report: t.report,
-  error: t.error,
-});
 
 export type ThreadService = {
   listThreadDTOs(): ThreadListItem[];
@@ -48,27 +30,14 @@ export type ThreadService = {
   getThreadEvents(threadId: string): AgentEvent[];
   sendMessage(threadId: string, message: string): boolean;
   isRunning(threadId: string): boolean;
+  findArtifactsByThread(threadId: string): ReturnType<ArtifactRepository['findByThread']>;
 };
 
-export const createThreadService = (repo: ThreadRepository): ThreadService => {
-  const liveSubscribers = new Map<string, EventSubscriber[]>();
+export const createThreadService = (deps: ThreadServiceDeps): ThreadService => {
+  const { repo, artifactRepo, dispatcher, queue } = deps;
   const messageQueues = new Map<string, MessageQueue>();
-  let pipelineChain: Promise<void> = Promise.resolve();
-  let runningCount = 0;
 
   const generateId = (): string => `debug-${randomUUID()}`;
-
-  const subscribe = (threadId: string, subscriber: EventSubscriber): void => {
-    const subs = liveSubscribers.get(threadId);
-    if (subs !== undefined) subs.push(subscriber);
-  };
-
-  const unsubscribe = (threadId: string, subscriber: EventSubscriber): void => {
-    const subs = liveSubscribers.get(threadId);
-    if (subs === undefined) return;
-    const idx = subs.indexOf(subscriber);
-    if (idx !== -1) subs.splice(idx, 1);
-  };
 
   const handleEvent = (threadId: string, event: AgentEvent): void => {
     try {
@@ -77,10 +46,9 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
       logger.error({ threadId, err }, '[ThreadService] Failed to persist event');
     }
 
-    // Persist artifact to DB
     if (event.type === 'artifact_captured') {
       try {
-        insertArtifact({
+        artifactRepo.insert({
           threadId,
           type: event.artifactType,
           name: event.name,
@@ -91,16 +59,8 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
         logger.error({ threadId, err }, '[ThreadService] Failed to persist artifact');
       }
     }
-    const subs = liveSubscribers.get(threadId);
-    if (subs !== undefined) {
-      for (const sub of subs) {
-        try {
-          sub(event);
-        } catch (err) {
-          logger.error({ threadId, err }, '[ThreadService] Subscriber error');
-        }
-      }
-    }
+
+    dispatcher.dispatch(threadId, event);
   };
 
   const completeThread = (threadId: string, report: InvestigationReport | null): void => {
@@ -109,9 +69,9 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
     } else {
       repo.updateStatus(threadId, 'done');
     }
-    liveSubscribers.delete(threadId);
-    const queue = messageQueues.get(threadId);
-    if (queue !== undefined) queue.cancel();
+    dispatcher.cleanup(threadId);
+    const mq = messageQueues.get(threadId);
+    if (mq !== undefined) mq.cancel();
     messageQueues.delete(threadId);
   };
 
@@ -119,57 +79,8 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
     logger.error({ threadId, error }, '[ThreadService] Investigation failed');
     handleEvent(threadId, { type: 'error', agent: AGENT_NAME.AGENT, message: error });
     repo.updateError(threadId, error);
-    liveSubscribers.delete(threadId);
+    dispatcher.cleanup(threadId);
     messageQueues.delete(threadId);
-  };
-
-  const createThread = (input: StartInvestigationInput): ThreadRecord => {
-    const id = generateId();
-    const thread = repo.create({ id, url: input.url, hint: input.hint, mode: input.mode });
-    liveSubscribers.set(id, []);
-    if (input.mode === INVESTIGATION_MODE.INTERACTIVE) {
-      messageQueues.set(id, createMessageQueue());
-    }
-    return thread;
-  };
-
-  const startPipeline = async (thread: ThreadRecord, input: StartInvestigationInput): Promise<void> => {
-    const position = runningCount;
-    runningCount++;
-
-    if (position > 0) {
-      repo.updateStatus(thread.id, 'queued');
-      handleEvent(thread.id, {
-        type: 'investigation_queued',
-        position,
-        message: `Queued at position ${position.toString()}. Waiting for current investigation to finish.`,
-      });
-    }
-
-    const previousChain = pipelineChain;
-    pipelineChain = previousChain.then(async () => {
-      repo.updateStatus(thread.id, 'running');
-      try {
-        const { runInvestigationPipeline } = await import('@ai-debug/engine/service/investigation-service');
-
-        const report = await runInvestigationPipeline(
-          { url: thread.url, hint: thread.hint, mode: thread.mode },
-          {
-            onEvent: (event: AgentEvent) => { handleEvent(thread.id, event); },
-            configOverrides: input.config,
-            messageQueue: messageQueues.get(thread.id),
-            threadId: thread.id,
-          },
-        );
-        completeThread(thread.id, report);
-      } catch (err) {
-        failThread(thread.id, err instanceof Error ? err.message : String(err));
-      } finally {
-        runningCount--;
-      }
-    });
-
-    await pipelineChain;
   };
 
   return {
@@ -183,25 +94,51 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
     },
 
     startInvestigation(data: InvestigationRequest): CreateThreadResult {
-      const input: StartInvestigationInput = {
-        url: data.url,
-        hint: data.hint ?? '',
-        mode: data.mode,
-        config: data.config,
-        callbackUrl: data.callbackUrl,
-      };
-      const thread = createThread(input);
-      const position = runningCount;
-      void startPipeline(thread, input);
+      const id = generateId();
+      const thread = repo.create({ id, url: data.url, hint: data.hint ?? '', mode: data.mode });
+      dispatcher.init(id);
+
+      if (data.mode === INVESTIGATION_MODE.INTERACTIVE) {
+        messageQueues.set(id, createMessageQueue());
+      }
+
+      const { position } = queue.enqueue(async () => {
+        if (position > 0) {
+          repo.updateStatus(thread.id, 'queued');
+          handleEvent(thread.id, {
+            type: 'investigation_queued',
+            position,
+            message: `Queued at position ${position.toString()}. Waiting for current investigation to finish.`,
+          });
+        }
+
+        repo.updateStatus(thread.id, 'running');
+        try {
+          const { runInvestigationPipeline } = await import('@ai-debug/engine/service/investigation-service');
+          const report = await runInvestigationPipeline(
+            { url: thread.url, hint: thread.hint, mode: thread.mode },
+            {
+              onEvent: (event: AgentEvent) => { handleEvent(thread.id, event); },
+              configOverrides: data.config,
+              messageQueue: messageQueues.get(thread.id),
+              threadId: thread.id,
+            },
+          );
+          completeThread(thread.id, report);
+        } catch (err) {
+          failThread(thread.id, err instanceof Error ? err.message : String(err));
+        }
+      });
+
       return {
-        threadId: thread.id,
+        threadId: id,
         status: position > 0 ? 'queued' : 'started',
         ...(position > 0 ? { position } : {}),
       };
     },
 
     async streamEvents(threadId: string, onEvent: EventSubscriber): Promise<void> {
-      subscribe(threadId, onEvent);
+      dispatcher.subscribe(threadId, onEvent);
       await new Promise<void>((resolve) => {
         const check = setInterval(() => {
           if (!this.isRunning(threadId)) {
@@ -210,7 +147,7 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
           }
         }, 500);
       });
-      unsubscribe(threadId, onEvent);
+      dispatcher.unsubscribe(threadId, onEvent);
     },
 
     listReports(): ReportListItem[] {
@@ -237,10 +174,14 @@ export const createThreadService = (repo: ThreadRepository): ThreadService => {
     },
 
     sendMessage(threadId: string, message: string): boolean {
-      const queue = messageQueues.get(threadId);
-      if (queue === undefined) return false;
-      queue.push(message);
+      const mq = messageQueues.get(threadId);
+      if (mq === undefined) return false;
+      mq.push(message);
       return true;
+    },
+
+    findArtifactsByThread(threadId: string) {
+      return artifactRepo.findByThread(threadId);
     },
   };
 };

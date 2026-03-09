@@ -7,7 +7,6 @@ import { streamSSE } from 'hono/streaming';
 import { InvestigationRequestSchema, UserMessageSchema, type AgentEvent } from '@ai-debug/shared';
 import type { ThreadService } from '#services/thread-service.js';
 import { ok, created, notFound, badRequest } from '#lib/response.js';
-import { getArtifactsByThread } from '#repositories/artifact-repository.js';
 
 export const createInvestigateRoute = (service: ThreadService): Hono => {
   const route = new Hono();
@@ -31,7 +30,7 @@ export const createInvestigateRoute = (service: ThreadService): Hono => {
   );
 
   route.get('/:threadId/artifacts', (c) =>
-    ok(c, getArtifactsByThread(c.req.param('threadId'))),
+    ok(c, service.findArtifactsByThread(c.req.param('threadId'))),
   );
 
   route.get('/:threadId/stream', (c) => {

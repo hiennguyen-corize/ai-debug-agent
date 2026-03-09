@@ -3,6 +3,7 @@
  */
 
 import type { InvestigationReport, InvestigationMode, ThreadStatus } from '@ai-debug/shared';
+import type { ThreadRecord } from '#repositories/thread-repository.js';
 
 export type ThreadListItem = {
   threadId: string;
@@ -28,3 +29,20 @@ export type ReportListItem = {
   status: ThreadStatus;
   createdAt: number;
 };
+
+export const toListItem = (t: ThreadRecord): ThreadListItem => ({
+  threadId: t.id,
+  status: t.status,
+  request: { url: t.url, hint: t.hint, mode: t.mode },
+  report: t.report,
+  error: t.error,
+  createdAt: t.createdAt.getTime(),
+});
+
+export const toDetail = (t: ThreadRecord): ThreadDetail => ({
+  threadId: t.id,
+  status: t.status,
+  request: { url: t.url, hint: t.hint, mode: t.mode },
+  report: t.report,
+  error: t.error,
+});

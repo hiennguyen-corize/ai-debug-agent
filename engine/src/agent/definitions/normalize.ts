@@ -3,7 +3,7 @@
  * Handles various shapes the LLM might produce.
  */
 
-import type { FinishResult } from '#agent/loop/types.js';
+import type { FinishResult } from '#agent/definitions/types.js';
 import { REPORT_SEVERITY, type ReportSeverity } from '@ai-debug/shared';
 
 const VALID_SEVERITIES = new Set<string>(Object.values(REPORT_SEVERITY));

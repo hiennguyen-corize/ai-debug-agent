@@ -18,7 +18,6 @@
             "types": "./dist/agent/config-loader.d.ts",
             "default": "./dist/agent/config-loader.js"
         },
-
         "./agent/message-queue": {
             "types": "./dist/agent/message-queue.d.ts",
             "default": "./dist/agent/message-queue.js"
@@ -46,7 +45,8 @@
         "#reporter/*.js": "./dist/reporter/*.js",
         "#service/*.js": "./dist/service/*.js",
         "#sourcemap/*.js": "./dist/sourcemap/*.js",
-        "#graph/*.js": "./dist/agent/graph/*.js"
+        "#graph/*.js": "./dist/agent/graph/*.js",
+        "#graph/nodes/*.js": "./dist/agent/graph/nodes/*.js"
     },
     "scripts": {
         "build": "tsc",
